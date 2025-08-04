@@ -56,7 +56,7 @@ export default function Profile() {
     }
   }, [user]);
 
-  const { data: company } = useQuery({
+  const { data: company } = useQuery<any>({
     queryKey: ["/api/companies", user?.companyId],
     enabled: !!user?.companyId,
     retry: false,
@@ -149,7 +149,7 @@ export default function Profile() {
                 <div className="flex flex-col items-center text-center">
                   <div className="relative mb-4">
                     <Avatar className="w-24 h-24">
-                      <AvatarImage src={user?.profileImageUrl} alt={user?.name || ""} />
+                      <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.name || ""} />
                       <AvatarFallback className="text-2xl">
                         {user?.name?.charAt(0) || user?.firstName?.charAt(0) || user?.email?.charAt(0) || "U"}
                       </AvatarFallback>

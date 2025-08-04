@@ -73,7 +73,7 @@ export default function Upload() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: jobs, isLoading: jobsLoading } = useQuery({
+  const { data: jobs = [], isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
     retry: false,
   });

@@ -32,29 +32,74 @@ export default function HRDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery<{
+    totalCandidates: number;
+    totalJobs: number;
+    candidatesInProcess: number;
+  }>({
     queryKey: ["/api/dashboard/stats"],
     retry: false,
   });
 
-  const { data: todos, isLoading: todosLoading } = useQuery({
+  const { data: todos = [], isLoading: todosLoading } = useQuery<any[]>({
     queryKey: ["/api/todos"],
     retry: false,
   });
 
-  const { data: notifications } = useQuery({
+  const { data: notifications = [] } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
     retry: false,
   });
 
-  // Mock chart data
-  const jobsData = [
-    { month: 'Jan', opened: 12, filled: 8 },
-    { month: 'Feb', opened: 8, filled: 6 },
-    { month: 'Mar', opened: 15, filled: 12 },
-    { month: 'Apr', opened: 10, filled: 7 },
-    { month: 'May', opened: 14, filled: 10 },
-    { month: 'Jun', opened: 9, filled: 7 },
+  // Overview metrics data - matching reference design
+  const overviewMetrics = [
+    {
+      title: "Total Profit",
+      value: "$95,595",
+      change: "+5.55%",
+      trend: "up",
+      icon: TrendingUp,
+      color: "text-green-600"
+    },
+    {
+      title: "Total Expenses", 
+      value: "$12,789",
+      change: "+2.67%",
+      trend: "up", 
+      icon: Users,
+      color: "text-blue-600"
+    },
+    {
+      title: "New Users",
+      value: "1,984",
+      change: "-8.88%",
+      trend: "down",
+      icon: Users,
+      color: "text-purple-600"
+    }
+  ];
+
+  // Sales report chart data - matching reference line chart
+  const salesData = [
+    { date: '22 Jun', income: 15000, expenses: 8000 },
+    { date: '23 Jun', income: 12000, expenses: 6000 },
+    { date: '24 Jun', income: 20000, expenses: 12000 },
+    { date: '25 Jun', income: 8000, expenses: 4000 },
+    { date: '26 Jun', income: 18000, expenses: 10000 },
+    { date: '27 Jun', income: 16000, expenses: 9000 },
+    { date: '28 Jun', income: 22000, expenses: 13000 },
+  ];
+
+  // Top selling products data - matching reference design
+  const topProducts = [
+    { name: "Adidas CI Sneaker", price: "$2,230", image: "👟" },
+    { name: "Nike Men's Kaptir Sneaker", price: "$1,124", image: "👟" },
+    { name: "Adidas Women's Court Sneaker", price: "$998", image: "👟" },
+    { name: "ASICS Women's ? Running Shoe", price: "$788", image: "👟" },
+    { name: "Soft8 Men's 3 Pack - USA Poly", price: "$558", image: "👕" },
+    { name: "Sample Joys by Carter's Shirt", price: "$323", image: "👕" },
+    { name: "Polo Ralph Lauren Men's Slim Fit", price: "$200", image: "👔" },
+    { name: "Gildan Men's G2000 Ultra Cotton", price: "$282", image: "👕" }
   ];
 
   const pipelineData = [
@@ -148,70 +193,140 @@ export default function HRDashboard() {
             </div>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Jobs Opened vs Filled Chart */}
-              <Card data-testid="jobs-chart">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Sales Report - Line Chart matching reference */}
+              <Card data-testid="sales-chart" className="lg:col-span-2">
                 <CardHeader>
-                  <CardTitle>Jobs Opened vs Filled</CardTitle>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Sales Report</span>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <span>Income</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                        <span>Expenses</span>
+                      </div>
+                    </div>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={jobsData}>
+                    <AreaChart data={salesData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
+                      <XAxis dataKey="date" />
                       <YAxis />
                       <Tooltip />
-                      <Bar dataKey="opened" fill="hsl(var(--primary))" name="Jobs Opened" />
-                      <Bar dataKey="filled" fill="hsl(var(--secondary))" name="Jobs Filled" />
-                    </BarChart>
+                      <Area 
+                        type="monotone" 
+                        dataKey="income" 
+                        stroke="hsl(var(--primary))" 
+                        fill="hsl(var(--primary))" 
+                        fillOpacity={0.1}
+                        strokeWidth={2}
+                        name="Income"
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="expenses" 
+                        stroke="hsl(var(--muted-foreground))" 
+                        fill="hsl(var(--muted-foreground))" 
+                        fillOpacity={0.05}
+                        strokeWidth={2}
+                        name="Expenses"
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
 
-              {/* Hiring Pipeline Funnel */}
-              <Card data-testid="pipeline-chart">
+              {/* Top Selling Products - matching reference */}
+              <Card data-testid="top-products">
                 <CardHeader>
-                  <CardTitle>Hiring Pipeline</CardTitle>
+                  <CardTitle>Top Selling Product</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={pipelineData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {pipelineData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                <CardContent className="space-y-4">
+                  {topProducts.slice(0, 8).map((product, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center text-sm">
+                          {product.image}
+                        </div>
+                        <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
+                          {product.name}
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">
+                        {product.price}
+                      </span>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             </div>
 
-            {/* Candidate Status Bar Chart */}
-            <Card data-testid="status-chart">
+            {/* Bottom Row - Additional Metrics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Active Users Section */}
+              <Card data-testid="active-users">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Active Users</span>
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      <span className="text-lg font-bold">200</span>
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Page views per day</p>
+                </CardContent>
+              </Card>
+
+              {/* Upcoming Events */}
+              <Card data-testid="upcoming-events">
+                <CardHeader>
+                  <CardTitle>Upcoming Events</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">No upcoming events scheduled</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Popular Categories */}
+            <Card data-testid="popular-categories">
               <CardHeader>
-                <CardTitle>Candidate Status Overview</CardTitle>
+                <CardTitle>Popular Categories</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={statusData} layout="horizontal">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="status" type="category" width={120} />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-2">
+                      <Briefcase className="text-primary" size={20} />
+                    </div>
+                    <p className="text-sm font-medium">Engineering</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mx-auto mb-2">
+                      <Users className="text-blue-500" size={20} />
+                    </div>
+                    <p className="text-sm font-medium">Sales</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mx-auto mb-2">
+                      <TrendingUp className="text-green-500" size={20} />
+                    </div>
+                    <p className="text-sm font-medium">Marketing</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center mx-auto mb-2">
+                      <Clock className="text-yellow-500" size={20} />
+                    </div>
+                    <p className="text-sm font-medium">Operations</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>

@@ -231,7 +231,7 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
             </div>
             {formData.skills.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {formData.skills.map((skill, index) => (
+                {formData.skills.map((skill: string, index: number) => (
                   <Badge key={index} variant="secondary" className="flex items-center gap-1">
                     {skill}
                     <X

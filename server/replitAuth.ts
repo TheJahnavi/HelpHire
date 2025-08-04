@@ -63,6 +63,8 @@ async function upsertUser(
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    role: "HR", // Default role for now - can be customized later
+    name: `${claims["first_name"] || ""} ${claims["last_name"] || ""}`.trim() || claims["email"],
   });
 }
 

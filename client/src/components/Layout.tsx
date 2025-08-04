@@ -25,7 +25,7 @@ export default function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const { data: notifications } = useQuery({
+  const { data: notifications = [] } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
     enabled: isAuthenticated,
   });
@@ -127,7 +127,7 @@ export default function Layout({ children }: LayoutProps) {
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="relative h-8 w-8 rounded-full" data-testid="user-menu">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={user?.profileImageUrl} alt={user?.name || ""} />
+                          <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.name || ""} />
                           <AvatarFallback>
                             {user?.name?.charAt(0) || user?.email?.charAt(0) || "U"}
                           </AvatarFallback>

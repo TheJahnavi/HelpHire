@@ -105,22 +105,20 @@ export class DatabaseStorage implements IStorage {
 
   // Job operations
   async getJobs(companyId?: number, hrUserId?: string): Promise<Job[]> {
-    let query = db.select().from(jobs);
-    
     if (companyId && hrUserId) {
-      query = query.where(
+      return await db.select().from(jobs).where(
         and(
           eq(jobs.companyId, companyId),
           eq(jobs.hrHandlingUserId, hrUserId)
         )
-      );
+      ).orderBy(desc(jobs.createdAt));
     } else if (companyId) {
-      query = query.where(eq(jobs.companyId, companyId));
+      return await db.select().from(jobs).where(eq(jobs.companyId, companyId)).orderBy(desc(jobs.createdAt));
     } else if (hrUserId) {
-      query = query.where(eq(jobs.hrHandlingUserId, hrUserId));
+      return await db.select().from(jobs).where(eq(jobs.hrHandlingUserId, hrUserId)).orderBy(desc(jobs.createdAt));
     }
     
-    return await query.orderBy(desc(jobs.createdAt));
+    return await db.select().from(jobs).orderBy(desc(jobs.createdAt));
   }
 
   async getJob(id: number): Promise<Job | undefined> {
@@ -148,13 +146,11 @@ export class DatabaseStorage implements IStorage {
 
   // Candidate operations
   async getCandidates(companyId?: number, hrUserId?: string): Promise<Candidate[]> {
-    let query = db.select().from(candidates);
-    
     if (hrUserId) {
-      query = query.where(eq(candidates.hrHandlingUserId, hrUserId));
+      return await db.select().from(candidates).where(eq(candidates.hrHandlingUserId, hrUserId)).orderBy(desc(candidates.createdAt));
     }
     
-    return await query.orderBy(desc(candidates.createdAt));
+    return await db.select().from(candidates).orderBy(desc(candidates.createdAt));
   }
 
   async getCandidate(id: number): Promise<Candidate | undefined> {

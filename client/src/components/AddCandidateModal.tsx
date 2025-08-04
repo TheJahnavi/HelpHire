@@ -193,7 +193,7 @@ export default function AddCandidateModal({ candidate, onClose }: AddCandidateMo
   };
 
   const getJobTitle = (jobId: string) => {
-    const job = jobs?.find((j: any) => j.id.toString() === jobId);
+    const job = (jobs as any[])?.find((j: any) => j.id.toString() === jobId);
     return job?.jobTitle || "";
   };
 
@@ -249,10 +249,10 @@ export default function AddCandidateModal({ candidate, onClose }: AddCandidateMo
                 <SelectContent>
                   {jobsLoading ? (
                     <SelectItem value="loading" disabled>Loading jobs...</SelectItem>
-                  ) : jobs?.length === 0 ? (
+                  ) : (jobs as any[])?.length === 0 ? (
                     <SelectItem value="none" disabled>No jobs available</SelectItem>
                   ) : (
-                    jobs?.map((job: any) => (
+                    (jobs as any[])?.map((job: any) => (
                       <SelectItem key={job.id} value={job.id.toString()}>
                         {job.jobTitle}
                       </SelectItem>
@@ -291,7 +291,7 @@ export default function AddCandidateModal({ candidate, onClose }: AddCandidateMo
             </div>
             {formData.candidateSkills.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {formData.candidateSkills.map((skill, index) => (
+                {formData.candidateSkills.map((skill: string, index: number) => (
                   <Badge key={index} variant="secondary" className="flex items-center gap-1">
                     {skill}
                     <X

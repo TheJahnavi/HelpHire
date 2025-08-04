@@ -37,12 +37,12 @@ export default function Notifications({ onClose }: NotificationsProps) {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: notifications, isLoading: notificationsLoading } = useQuery({
+  const { data: notifications = [], isLoading: notificationsLoading } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
     retry: false,
   });
 
-  const { data: todos, isLoading: todosLoading } = useQuery({
+  const { data: todos = [], isLoading: todosLoading } = useQuery<any[]>({
     queryKey: ["/api/todos"],
     retry: false,
   });

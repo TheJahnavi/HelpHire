@@ -51,7 +51,7 @@ export default function Jobs() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: jobs, isLoading: jobsLoading, error } = useQuery({
+  const { data: jobs = [], isLoading: jobsLoading, error } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
     retry: false,
   });

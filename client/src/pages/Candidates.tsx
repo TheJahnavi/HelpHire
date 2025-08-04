@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Eye, UserCheck, UserX } from "lucide-react";
+import { Plus, Search, Eye, UserCheck, UserX, Upload, Edit } from "lucide-react";
 import AddCandidateModal from "@/components/AddCandidateModal";
 
 export default function Candidates() {
@@ -53,12 +53,12 @@ export default function Candidates() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: candidates, isLoading: candidatesLoading } = useQuery({
+  const { data: candidates = [], isLoading: candidatesLoading } = useQuery<any[]>({
     queryKey: ["/api/candidates"],
     retry: false,
   });
 
-  const { data: jobs } = useQuery({
+  const { data: jobs = [] } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
     retry: false,
   });
@@ -146,16 +146,24 @@ export default function Candidates() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
+        {/* Page Header with enhanced styling */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-foreground" data-testid="page-title">Candidates</h1>
+            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3" data-testid="page-title">
+              Candidates ({filteredCandidates.length})
+            </h1>
             <p className="text-muted-foreground mt-1">Manage and review candidate applications</p>
           </div>
-          <Button onClick={() => setShowAddModal(true)} data-testid="add-candidate-button">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Candidate
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm">
+              <Upload className="mr-2 h-4 w-4" />
+              Import
+            </Button>
+            <Button onClick={() => setShowAddModal(true)} data-testid="add-candidate-button">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Candidate
+            </Button>
+          </div>
         </div>
 
         {/* Table Card */}
