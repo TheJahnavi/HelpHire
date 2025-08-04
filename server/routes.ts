@@ -1,7 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import bcrypt from "bcryptjs";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
@@ -24,19 +26,175 @@ const upload = multer({
   }
 });
 
+// Session middleware
+function setupSession(app: Express) {
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: false,
+    ttl: sessionTtl,
+    tableName: "sessions",
+  });
+  
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: false, // Set to true in production with HTTPS
+      maxAge: sessionTtl,
+    },
+  }));
+}
+
+// Authentication middleware
+const isAuthenticated = (req: any, res: any, next: any) => {
+  if (req.session && req.session.user) {
+    return next();
+  }
+  return res.status(401).json({ message: "Unauthorized" });
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // Setup session middleware
+  setupSession(app);
 
   // Auth routes
+  app.post('/api/auth/signup', async (req, res) => {
+    try {
+      const { name, email, password, role, company } = req.body;
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User already exists with this email" });
+      }
+
+      // Hash password
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      // Find or create company if needed
+      let companyId = null;
+      if (role !== "Super Admin" && company) {
+        const existingCompany = await storage.getCompanyByName(company);
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          const newCompany = await storage.createCompany({ companyName: company });
+          companyId = newCompany.id;
+        }
+      }
+
+      // Create user
+      const user = await storage.createUser({
+        email,
+        name,
+        passwordHash,
+        role,
+        companyId,
+        accountStatus: 'active',
+      });
+
+      res.json({ message: "User created successfully", userId: user.id });
+    } catch (error) {
+      console.error("Signup error:", error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password, role, company } = req.body;
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.passwordHash) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Check password
+      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Check role match
+      if (user.role !== role) {
+        return res.status(401).json({ message: "Invalid role" });
+      }
+
+      // Check company match for non-Super Admin users
+      if (role !== "Super Admin" && user.companyId) {
+        const userCompany = await storage.getCompany(user.companyId);
+        if (!userCompany || userCompany.companyName !== company) {
+          return res.status(401).json({ message: "Invalid company" });
+        }
+      }
+
+      // Set session
+      (req as any).session.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        companyId: user.companyId,
+      };
+
+      res.json({ message: "Login successful", user: (req as any).session.user });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Failed to login" });
+    }
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  app.post('/api/auth/logout', (req: any, res) => {
+    req.session.destroy((err: any) => {
+      if (err) {
+        return res.status(500).json({ message: "Failed to logout" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  // Dashboard stats endpoint
+  app.get('/api/dashboard/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
+      
+      if (!user || !user.companyId) {
+        return res.status(404).json({ message: "User or company not found" });
+      }
+
+      // Get comprehensive dashboard data
+      const jobStats = await storage.getJobStats(user.companyId);
+      const candidateStats = await storage.getCandidateStats(user.companyId);
+      const pipelineData = await storage.getPipelineData(user.companyId);
+      const chartData = await storage.getChartData(user.companyId);
+
+      res.json({
+        jobStats,
+        candidateStats,
+        pipelineData,
+        chartData
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
     }
   });
 
@@ -51,30 +209,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/companies/:id', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const company = await storage.getCompany(id);
-      if (!company) {
-        return res.status(404).json({ message: "Company not found" });
-      }
-      res.json(company);
-    } catch (error) {
-      console.error("Error fetching company:", error);
-      res.status(500).json({ message: "Failed to fetch company" });
-    }
-  });
-
   // Job routes
   app.get('/api/jobs', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
       
-      const jobs = await storage.getJobs(user.companyId || undefined, userId);
+      if (!user || !user.companyId) {
+        return res.status(404).json({ message: "User or company not found" });
+      }
+
+      const jobs = await storage.getJobsByCompany(user.companyId);
       res.json(jobs);
     } catch (error) {
       console.error("Error fetching jobs:", error);
@@ -82,83 +227,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/jobs/:id', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const job = await storage.getJob(id);
-      if (!job) {
-        return res.status(404).json({ message: "Job not found" });
-      }
-      res.json(job);
-    } catch (error) {
-      console.error("Error fetching job:", error);
-      res.status(500).json({ message: "Failed to fetch job" });
-    }
-  });
-
   app.post('/api/jobs', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
+      const sessionUser = req.session.user;
       const jobData = insertJobSchema.parse({
         ...req.body,
-        addedByUserId: userId,
-        hrHandlingUserId: userId,
-        companyId: user.companyId,
+        addedByUserId: sessionUser.id,
+        companyId: sessionUser.companyId,
       });
       
       const job = await storage.createJob(jobData);
-      res.status(201).json(job);
+      res.json(job);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid job data", errors: error.errors });
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
       }
       console.error("Error creating job:", error);
       res.status(500).json({ message: "Failed to create job" });
     }
   });
 
-  app.put('/api/jobs/:id', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const jobData = insertJobSchema.partial().parse(req.body);
-      
-      const job = await storage.updateJob(id, jobData);
-      res.json(job);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid job data", errors: error.errors });
-      }
-      console.error("Error updating job:", error);
-      res.status(500).json({ message: "Failed to update job" });
-    }
-  });
-
-  app.delete('/api/jobs/:id', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      await storage.deleteJob(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting job:", error);
-      res.status(500).json({ message: "Failed to delete job" });
-    }
-  });
-
   // Candidate routes
   app.get('/api/candidates', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
       
-      const candidates = await storage.getCandidates(user.companyId || undefined, userId);
+      if (!user || !user.companyId) {
+        return res.status(404).json({ message: "User or company not found" });
+      }
+
+      const candidates = await storage.getCandidatesByCompany(user.companyId);
       res.json(candidates);
     } catch (error) {
       console.error("Error fetching candidates:", error);
@@ -166,125 +265,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/candidates/:id', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const candidate = await storage.getCandidate(id);
-      if (!candidate) {
-        return res.status(404).json({ message: "Candidate not found" });
-      }
-      res.json(candidate);
-    } catch (error) {
-      console.error("Error fetching candidate:", error);
-      res.status(500).json({ message: "Failed to fetch candidate" });
-    }
-  });
-
   app.post('/api/candidates', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const sessionUser = req.session.user;
       const candidateData = insertCandidateSchema.parse({
         ...req.body,
-        hrHandlingUserId: userId,
+        hrHandlingUserId: sessionUser.id,
       });
       
       const candidate = await storage.createCandidate(candidateData);
-      res.status(201).json(candidate);
+      res.json(candidate);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid candidate data", errors: error.errors });
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
       }
       console.error("Error creating candidate:", error);
       res.status(500).json({ message: "Failed to create candidate" });
     }
   });
 
-  app.put('/api/candidates/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/candidates/:id', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const candidateData = insertCandidateSchema.partial().parse(req.body);
+      const updateData = req.body;
       
-      const candidate = await storage.updateCandidate(id, candidateData);
+      const candidate = await storage.updateCandidate(id, updateData);
       res.json(candidate);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid candidate data", errors: error.errors });
-      }
       console.error("Error updating candidate:", error);
       res.status(500).json({ message: "Failed to update candidate" });
     }
   });
 
-  app.delete('/api/candidates/:id', isAuthenticated, async (req, res) => {
+  // File upload for candidates
+  app.post('/api/candidates/upload', isAuthenticated, upload.single('resume'), async (req: any, res) => {
     try {
-      const id = parseInt(req.params.id);
-      await storage.deleteCandidate(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting candidate:", error);
-      res.status(500).json({ message: "Failed to delete candidate" });
-    }
-  });
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
 
-  // Notification routes
-  app.get('/api/notifications', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-      const notifications = await storage.getNotifications(userId, limit);
-      res.json(notifications);
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-      res.status(500).json({ message: "Failed to fetch notifications" });
-    }
-  });
-
-  app.post('/api/notifications', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const notificationData = insertNotificationSchema.parse({
-        ...req.body,
-        userId,
+      const sessionUser = req.session.user;
+      const { candidateName, email, jobId, candidateSkills, candidateExperience } = req.body;
+      
+      const candidateData = insertCandidateSchema.parse({
+        candidateName,
+        email,
+        jobId: parseInt(jobId),
+        candidateSkills: candidateSkills ? candidateSkills.split(',').map((s: string) => s.trim()) : [],
+        candidateExperience,
+        resumeUrl: req.file.path,
+        hrHandlingUserId: sessionUser.id,
+        matchPercentage: Math.floor(Math.random() * 40) + 60, // Mock matching for now
       });
       
-      const notification = await storage.createNotification(notificationData);
-      res.status(201).json(notification);
+      const candidate = await storage.createCandidate(candidateData);
+      res.json(candidate);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid notification data", errors: error.errors });
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
       }
-      console.error("Error creating notification:", error);
-      res.status(500).json({ message: "Failed to create notification" });
-    }
-  });
-
-  app.put('/api/notifications/:id/read', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      await storage.markNotificationAsRead(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-      res.status(500).json({ message: "Failed to mark notification as read" });
-    }
-  });
-
-  app.put('/api/notifications/read-all', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      await storage.markAllNotificationsAsRead(userId);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error marking all notifications as read:", error);
-      res.status(500).json({ message: "Failed to mark all notifications as read" });
+      console.error("Error uploading candidate:", error);
+      res.status(500).json({ message: "Failed to upload candidate" });
     }
   });
 
   // Todo routes
   app.get('/api/todos', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const todos = await storage.getTodos(userId);
+      const sessionUser = req.session.user;
+      const todos = await storage.getTodosByUser(sessionUser.id);
       res.json(todos);
     } catch (error) {
       console.error("Error fetching todos:", error);
@@ -294,109 +343,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/todos', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const sessionUser = req.session.user;
       const todoData = insertTodoSchema.parse({
         ...req.body,
-        userId,
+        userId: sessionUser.id,
       });
       
       const todo = await storage.createTodo(todoData);
-      res.status(201).json(todo);
+      res.json(todo);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid todo data", errors: error.errors });
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
       }
       console.error("Error creating todo:", error);
       res.status(500).json({ message: "Failed to create todo" });
     }
   });
 
-  app.put('/api/todos/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/todos/:id', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const todoData = insertTodoSchema.partial().parse(req.body);
+      const updateData = req.body;
       
-      const todo = await storage.updateTodo(id, todoData);
+      const todo = await storage.updateTodo(id, updateData);
       res.json(todo);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid todo data", errors: error.errors });
-      }
       console.error("Error updating todo:", error);
       res.status(500).json({ message: "Failed to update todo" });
     }
   });
 
-  app.delete('/api/todos/:id', isAuthenticated, async (req, res) => {
+  // Notification routes
+  app.get('/api/notifications', isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionUser = req.session.user;
+      const notifications = await storage.getNotificationsByUser(sessionUser.id);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  app.put('/api/notifications/:id/read', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      await storage.deleteTodo(id);
-      res.status(204).send();
+      const notification = await storage.markNotificationAsRead(id);
+      res.json(notification);
     } catch (error) {
-      console.error("Error deleting todo:", error);
-      res.status(500).json({ message: "Failed to delete todo" });
-    }
-  });
-
-  // Dashboard stats route
-  app.get('/api/dashboard/stats', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      if (!user || !user.companyId) {
-        return res.status(404).json({ message: "User or company not found" });
-      }
-      
-      const stats = await storage.getDashboardStats(userId, user.companyId);
-      res.json(stats);
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-      res.status(500).json({ message: "Failed to fetch dashboard stats" });
-    }
-  });
-
-  // File upload routes
-  app.post('/api/upload/resumes', isAuthenticated, upload.array('resumes', 10), async (req: any, res) => {
-    try {
-      const files = req.files as Express.Multer.File[];
-      if (!files || files.length === 0) {
-        return res.status(400).json({ message: "No files uploaded" });
-      }
-
-      // Here you would implement AI processing for resume extraction
-      // For now, return mock data structure
-      const extractedData = files.map((file, index) => ({
-        filename: file.originalname,
-        path: file.path,
-        candidateName: `Candidate ${index + 1}`,
-        email: `candidate${index + 1}@example.com`,
-        skills: ['React', 'JavaScript', 'TypeScript'],
-        experience: `${3 + index} years`,
-      }));
-
-      res.json({ files: extractedData });
-    } catch (error) {
-      console.error("Error processing resume upload:", error);
-      res.status(500).json({ message: "Failed to process resume upload" });
-    }
-  });
-
-  app.post('/api/ai/match-candidates', isAuthenticated, async (req: any, res) => {
-    try {
-      const { jobId, candidates } = req.body;
-      
-      // Here you would implement AI matching logic
-      // For now, return mock matching percentages
-      const matchedCandidates = candidates.map((candidate: any) => ({
-        ...candidate,
-        matchPercentage: Math.floor(Math.random() * 30) + 70, // 70-100%
-        reportUrl: `/reports/${candidate.email}-match-report.pdf`,
-      }));
-
-      res.json({ matchedCandidates });
-    } catch (error) {
-      console.error("Error processing AI matching:", error);
-      res.status(500).json({ message: "Failed to process AI matching" });
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ message: "Failed to mark notification as read" });
     }
   });
 

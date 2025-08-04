@@ -45,12 +45,14 @@ export default function Layout({ children }: LayoutProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <Brain className="text-primary-foreground" size={20} />
+            <Link href={isAuthenticated ? "/hr/dashboard" : "/"}>
+              <div className="flex items-center space-x-3 cursor-pointer" data-testid="nav-logo">
+                <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                  <Brain className="text-primary-foreground" size={20} />
+                </div>
+                <span className="text-xl font-bold text-foreground">Smart Hiring</span>
               </div>
-              <span className="text-xl font-bold text-foreground">Smart Hiring</span>
-            </div>
+            </Link>
 
             {/* Navigation Items */}
             {isAuthenticated && (
@@ -145,10 +147,18 @@ export default function Layout({ children }: LayoutProps) {
                           <span className="w-full cursor-pointer" data-testid="notifications-link">Notifications</span>
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <a href="/api/logout" data-testid="logout-button">
-                          Logout
-                        </a>
+                      <DropdownMenuItem 
+                        onClick={async () => {
+                          try {
+                            await fetch('/api/auth/logout', { method: 'POST' });
+                            window.location.href = '/login';
+                          } catch (error) {
+                            console.error('Logout failed:', error);
+                          }
+                        }}
+                        data-testid="logout-button"
+                      >
+                        Logout
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -156,10 +166,14 @@ export default function Layout({ children }: LayoutProps) {
               ) : (
                 <div className="flex items-center space-x-3">
                   <Button variant="ghost" asChild data-testid="login-button">
-                    <a href="/api/login">Login</a>
+                    <Link href="/login">
+                      <span>Login</span>
+                    </Link>
                   </Button>
                   <Button asChild data-testid="signup-button">
-                    <a href="/api/login">Sign Up</a>
+                    <Link href="/signup">
+                      <span>Sign Up</span>
+                    </Link>
                   </Button>
                 </div>
               )}
