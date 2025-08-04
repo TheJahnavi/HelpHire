@@ -56,31 +56,31 @@ export default function Layout({ children }: LayoutProps) {
             {isAuthenticated && (
               <div className="hidden md:flex items-center space-x-8">
                 <Link href="/hr/jobs" data-testid="nav-jobs">
-                  <a
-                    className={`text-sm font-medium transition-colors hover:text-primary ${
+                  <span
+                    className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
                       isActive("/hr/jobs") ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
                     Jobs
-                  </a>
+                  </span>
                 </Link>
                 <Link href="/hr/candidates" data-testid="nav-candidates">
-                  <a
-                    className={`text-sm font-medium transition-colors hover:text-primary ${
+                  <span
+                    className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
                       isActive("/hr/candidates") ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
                     Candidates
-                  </a>
+                  </span>
                 </Link>
                 <Link href="/hr/upload" data-testid="nav-upload">
-                  <a
-                    className={`text-sm font-medium transition-colors hover:text-primary ${
+                  <span
+                    className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
                       isActive("/hr/upload") ? "text-primary" : "text-muted-foreground"
                     }`}
                   >
                     Upload & Add
-                  </a>
+                  </span>
                 </Link>
               </div>
             )}
@@ -137,12 +137,12 @@ export default function Layout({ children }: LayoutProps) {
                     <DropdownMenuContent className="w-56" align="end" forceMount>
                       <DropdownMenuItem asChild>
                         <Link href="/hr/profile">
-                          <a className="w-full" data-testid="profile-link">Profile</a>
+                          <span className="w-full cursor-pointer" data-testid="profile-link">Profile</span>
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link href="/hr/notifications">
-                          <a className="w-full" data-testid="notifications-link">Notifications</a>
+                          <span className="w-full cursor-pointer" data-testid="notifications-link">Notifications</span>
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>

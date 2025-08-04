@@ -1,0 +1,45 @@
+Warning: validateDOMNesting(...): <a> cannot appear as a descendant of &lt;a&gt;.
+    at a
+    at a
+    at https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=9f18b74d:337:18
+    at div
+    at div
+    at div
+    at nav
+    at div
+    at Layout (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/src/components/Layout.tsx:34:34)
+    at Provider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-PLT6GTVM.js?v=9f18b74d:38:15)
+    at TooltipProvider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=9f18b74d:64:5)
+    at ThemeProvider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/src/components/ThemeProvider.tsx:25:3)
+    at QueryClientProvider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=9f18b74d:2805:3)
+    at App
+AreaChart is not defined
+AreaChart is not defined
+The above error occurred in the <HRDashboard> component:
+
+    at HRDashboard (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/src/pages/HRDashboard.tsx:31:48)
+    at Route (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=9f18b74d:323:16)
+    at Switch (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=9f18b74d:379:17)
+    at Router (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/src/App.tsx?v=3nAaY5rWsfPodzlRFThFc:36:42)
+    at div
+    at div
+    at Layout (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/src/components/Layout.tsx:34:34)
+    at Provider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-PLT6GTVM.js?v=9f18b74d:38:15)
+    at TooltipProvider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=9f18b74d:64:5)
+    at ThemeProvider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/src/components/ThemeProvider.tsx:25:3)
+    at QueryClientProvider (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=9f18b74d:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+AreaChart is not defined
+at HRDashboard (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/src/pages/HRDashboard.tsx:340:386)
+at renderWithHooks (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:11548:26)
+at mountIndeterminateComponent (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:14926:21)
+at beginWork (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:15914:22)
+at beginWork$1 (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:19753:22)
+at performUnitOfWork (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:19198:20)
+at workLoopSync (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:19137:13)
+at renderRootSync (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:19116:15)
+at recoverFromConcurrentError (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:18736:28)
+at performSyncWorkOnRoot (https://a8f34c23-407e-4102-84dd-ccf44bcc0652-00-2128fizxw7ew0.riker.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-WERSD76P.js?v=9f18b74d:18879:28)
