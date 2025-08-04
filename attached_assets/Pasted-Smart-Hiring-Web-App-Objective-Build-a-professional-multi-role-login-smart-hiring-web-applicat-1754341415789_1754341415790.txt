@@ -1,0 +1,224 @@
+Smart Hiring Web App
+
+Objective: Build a professional, multi-role login, smart hiring web application using Replit. The application must be **mobile-screen friendly**, with a professional, high-end aesthetic that adheres to all UI/UX principles. The UI must feature a single, fixed navigation bar at the top, a light and dark mode toggle, and a clean, modern design based on the provided reference images. All data flows and logic must strictly follow the provided flowcharts, using a specific color palette.
+
+---
+1. Database Structure & Dummy Data
+    The application will be built on the following schema:
+    
+    Users Table: id, name, email, password_hash, role (string: Super Admin, Company Admin, HR), company_id (FK), account_status, profile_pic_url.
+    
+    Companies Table: id, company_name, logo_url.
+    
+    Jobs Table: id, job_title, added_by_user_id (FK), hr_handling_user_id (FK), job_description, skills (array of strings), experience, note, positions_count, job_status, company_id.
+    
+    Candidates Table: id, candidate_name, email, job_id (FK), candidate_skills, candidate_experience, match_percentage, resume_url, hr_handling_user_id (FK), status, report_link, interview_link.
+    
+    Notifications Table: id, user_id (FK), message, timestamp, read_status.
+    
+    ToDos Table: id, user_id (FK), task, is_completed.
+    
+    Initial Data: Populate the Users, Jobs, and Candidates tables with 3 dummy records each.
+
+2. UI/UX and Page Flow
+    Layout: A single fixed navigation bar at the top with a light/dark mode toggle. The main content area changes with the theme.
+    
+    Color Palette (Light Mode): Light gray background, dark text, primary buttons are royal blue (#1E88E5).
+    
+    Color Palette (Dark Mode): Dark gray background, white text, primary buttons are a vibrant blue.
+
+    Landing Page
+        UI: The page layout is clean, professional, and visually appealing.
+        
+        Top Navigation Bar: Contains the app logo on the left and "Book a Demo," "Login," and "Sign Up" buttons on the right.
+        
+        Hero Section: A prominent heading, "Revolutionize Your Hiring with AI," followed by a sub-headline. Below that are call-to-action buttons like "Let's get started" and "Start with free trial."
+        
+        Feature Sections: 3 sections, each with an image, a heading(AI Based Resume matching, AI Interviews based on Resumes, Performance Reports Resume Reports Vs Interview Reports ), and a description.
+        
+        Call-to-Action Section: A blue-themed full-width banner with the heading, "Are you ready to take control?" and a call-to-action button.
+        
+        Pricing Section: A grid-like layout showcasing different subscription plans with features and pricing.
+        
+        Footer: A dark blue section at the bottom with links, social media icons, and copyright information.
+        
+        Redirections:
+        
+        "Login" button redirects to the /login page.
+        
+        All other buttons ("Create a new account," "Let's get started," "Start with free trial") redirect to the /signup page.
+        
+    Sign-Up Page
+        UI: A form with input fields.
+        
+        Fields:
+        
+        Name, Email, Create Password, Confirm Password.
+        
+        Role: A dropdown with options Super Admin, Company Admin, HR.
+        
+        Company: A text input field that only appears and is mandatory if Company Admin or HR is selected.
+        
+        Redirections: After sign-up, display a link to the /login page and a link to the / (Home) page.
+    
+    Login Page
+        UI: A form with input fields.
+        
+        Fields:
+        
+        Email, Role, Password.
+        
+        Company: A text input field that only appears and is mandatory if the selected role is not Super Admin.
+        
+        Logic: Verifies credentials from the Users table. On success, redirects to the role-specific dashboard:
+        
+        Super Admin -> /super-admin/dashboard
+        
+        Company Admin -> /company-admin/dashboard
+        
+        HR -> /hr/dashboard
+    HR Login   
+    HR Dashboard (/hr/dashboard)
+        Top Navigation Bar
+        UI: A fixed bar at the top of every page. It includes the app logo on the left. On the right, it has:
+        
+        Notifications Icon: Clicking it displays a list of the 10 most recent notifications for the logged-in user.
+        
+        To-Do Icon: Clicking it displays a list of the To-Dos for the logged-in user.
+        
+        Profile Section: Displays the user's profile picture and name. Clicking this section should redirect to the /profile page.
+        
+        Light/Dark Mode Toggle: A button or icon to switch between color themes.
+        Data Source: All data comes from the Users, Jobs, Candidates, Notifications, and ToDos tables, filtered by the logged-in user's id and company_id.
+        
+        for Hr login the navigation should include Jobs, candidates, upload & add each of it redirecting to the respective page 
+        
+        UI:
+        
+        Cards: Three cards at the top displaying:
+        
+        Total Candidates: Count of candidates from the Candidates table where added_by_user_id equals the logged-in user's id. On-click, redirects to /hr/candidates with a pre-filter.
+        
+        Total Job Positions: Count of jobs from the Jobs table where hr_handling_user_id equals the logged-in user's id. On-click, redirects to /hr/jobs with a pre-filter.
+        
+        Candidates in Process: Count of candidates from the Candidates table where added_by_user_id equals the logged-in user's id and status is not 'Hired' or 'Not Selected'. On-click, redirects to /hr/candidates with a pre-filter.
+        
+        Visualizations:
+        
+        Stacked Column Chart: Displays jobs_opened vs. jobs_filled for the logged-in HR.
+        
+        Funnel Chart: Visualizes the hiring pipeline based on candidate status for the logged-in HR.
+        
+        Bar Chart: Shows the number of candidates in each specific status (Resume Reviewed, etc.) for the logged-in HR.
+        
+        Side Panels: one right side panel displaying:
+        
+        To-Do List: Lists records from the ToDos table where user_id matches the logged-in user.
+    
+    Jobs Page (/hr/jobs)
+        Data Source: Jobs table, filtered by the logged-in HR's user_id and company_id.
+        
+        UI:
+        
+        Table View: Displays data from the filtered Jobs table. This page must include **whole table search, sort, and filter options
+        
+        Columns: job_title, id, added_by_user_id, hr_handling_user_id, job_description, skills, experience, positions_count, job_status.
+        
+        Popups:
+        
+        "Add Job" Popup: Input fields to create a new record in the Jobs table.
+        
+        "Edit Job" Popup: Pre-filled with data from a selected job record, allowing updates to the Jobs table.
+    
+    Candidates Page (/hr/candidates)
+        Data Source: Candidates table, filtered by the logged-in HR's user_id and company_id.
+        
+        UI:
+        
+        Table View: Displays data from the filtered Candidates table. This page must include **whole table search, sort, and filter options
+        
+        Columns: candidate_name, id, job_title (from Jobs table via FK), job_id, email, candidate_skills, candidate_experience, match_percentage, resume_url, hr_handling_user_id, status, report_link, interview_link.
+        
+        Popups:
+        
+        "Add Candidate" Popup: Input fields to create a new record in the Candidates table.
+        
+        "Edit Candidate" Popup: Pre-filled with data from a selected candidate record, allowing updates to the Candidates table.
+        
+    Upload & Add Page (/hr/upload)
+        Data Source: This page does not directly display table data, but uses the Jobs table for the AI matching.
+        
+        UI:
+        
+        Job Selection: A dropdown list populated with job_title from the Jobs table, filtered by the logged-in HR.
+		after selecting a text field which auto fills the selected job role name, skills and experience needed and description in shot
+        
+        Resume Upload: A multi-file upload field for .pdf and .docx files.
+		
+		Extract data button calls a AI Agent 1: Data Extraction
+        
+        Results Table: A table to display AI-"Data Extraction" data(name, mail, skills, experience, portfolio link(optional), Resume link), with select and unselect option .
+		
+		"scan and match" button calls a AI Agent 2: Percentage Match, and generate a report with matching percentages and adding percentage for each skill by scaning through the project details in attached resume
+		
+		this table has option to table search, sort, filter, with select and unselect for each record in table
+		Result table: A table to display AI-"Percentage Match" data (name, mail, skills, experience, percentage(generated by AI agent2), report generated URL by AI AGENT2
+		
+		"Add candidate" button : add the selected records to the candidates table and redirect to candidates page 
+		
+
+    Profile Page (/hr/profile)
+        Data Source: Users and Companies tables, filtered by the logged-in user's ID and company_id.
+        
+        UI: A page that displays user information in a structured layout.
+        
+        Fields: Name, Email, Role, Company Name, and Logo URL.
+        
+        Functionality: Allows the user to edit their profile details.
+
+    Notifications
+        UI Structure & Data Flow
+        Layout: A single-page view. The main content area is divided into two sections: a central container for the To-Do list and a right-side panel for notifications.
+        
+        Color Palette: The design should adapt to the application's light and dark modes.
+        
+        To-Do List Section (Center)
+        UI: A prominent card or container placed in the center of the main content area. The title should be "To-Dos" or "3 tasks".
+
+        Data Source: The ToDos table, filtered to show records where user_id matches the logged-in user's ID.
+        
+        List Items: Each item displays a task from the ToDos table.
+        
+        Functionality:
+        
+        A checkbox next to each task.
+        
+        Clicking the checkbox updates the is_completed field in the ToDos table to True.
+        
+        Notifications Panel (Right 1/4th Section)
+        UI: A separate panel located in the right-most quarter of the page. This panel should be visually distinct from the main To-Do section.
+        
+        Data Source: The Notifications table, filtered to show the 10 most recent records where user_id matches the logged-in user's ID.
+        
+        Content:
+        
+        Each notification item should display the message and timestamp from the Notifications table.
+        
+        "Mark all as read" button: A button at the top of the panel. Clicking it updates the read_status field for all notifications for that user to True.
+        
+        "See more" button: A button at the bottom of the panel. Clicking it should redirect the user to a dedicated notifications page (e.g., /hr/notifications) that displays all 	notifications.
+        
+        Visuals:
+        
+        Notifications where read_status is False should have a distinct visual cue, such as a different background color or a bold font, to indicate they are unread.
+        
+        Notifications where read_status is True should appear with a standard font and background color.
+
+3. AI Functionalities
+Resume Analysis (on /hr/upload page):
+    
+    Agent 1: Data Extraction: An AI agent extracts candidate_name, email, candidate_skills, and candidate_experience from each uploaded resume.
+    
+    Agent 2: Percentage Match: Another AI agent compares the extracted skills and experience against the skills and experience fields of the selected job from the Jobs table. It returns a match_percentage score.
+    
+    Process: The results of both AI agents are combined and displayed in the results table, which can be sorted by match_percentage."
