@@ -9,6 +9,7 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import mammoth from "mammoth";
 import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini";
 
 // Setup multer for file uploads
@@ -398,6 +399,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to parse resume files
+  async function parseResumeFile(file: Express.Multer.File): Promise<string> {
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    
+    try {
+      if (fileExtension === '.pdf') {
+        // Parse PDF file using dynamic import
+        const pdf = (await import('pdf-parse')).default;
+        const dataBuffer = fs.readFileSync(file.path);
+        const pdfData = await pdf(dataBuffer);
+        return pdfData.text;
+      } else if (fileExtension === '.docx') {
+        // Parse DOCX file
+        const result = await mammoth.extractRawText({ path: file.path });
+        return result.value;
+      } else {
+        throw new Error(`Unsupported file type: ${fileExtension}`);
+      }
+    } catch (parseError) {
+      console.error(`Failed to parse ${file.originalname}:`, parseError);
+      throw new Error(`Could not extract text from ${file.originalname}: ${parseError}`);
+    }
+  }
+
   // AI-powered resume upload and analysis routes
   app.post('/api/upload/resumes', isAuthenticated, upload.array('resumes'), async (req: any, res) => {
     try {
@@ -407,18 +432,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const extractedCandidates: (ExtractedCandidate & { id: string })[] = [];
+      const processingErrors: string[] = [];
 
       for (const file of files) {
         try {
-          // Read file content (for now, we'll use filename as mock content since PDF parsing requires additional libraries)
-          let resumeText = `Resume file: ${file.originalname}\nCandidate applying for position.\nSkills and experience to be extracted.`;
+          console.log(`Processing file: ${file.originalname} (${file.mimetype})`);
           
-          // In production, you'd use a PDF parser here
-          if (file.mimetype === 'application/pdf') {
-            // For demo purposes, we'll use mock content
-            resumeText = `John Doe\nEmail: john.doe@email.com\nSoftware Engineer with 5 years experience in JavaScript, React, Node.js\nProjects: E-commerce platform, Task management system\nExperience in full-stack development and agile methodologies.`;
+          // Parse the actual file content
+          const resumeText = await parseResumeFile(file);
+          
+          if (!resumeText || resumeText.trim().length < 50) {
+            throw new Error(`Insufficient text content extracted from ${file.originalname}`);
           }
 
+          console.log(`Extracted ${resumeText.length} characters from ${file.originalname}`);
+          
+          // Use Gemini AI to extract candidate data from the actual resume text
           const extractedData = await extractResumeData(resumeText);
           const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           
@@ -427,18 +456,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: candidateId
           });
 
-          // Clean up uploaded file
-          fs.unlinkSync(file.path);
+          console.log(`Successfully processed ${file.originalname} - Extracted: ${extractedData.name}`);
+
         } catch (error) {
-          console.error(`Error processing file ${file.originalname}:`, error);
-          // Clean up file even if processing failed
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
+          const errorMessage = `Error processing file ${file.originalname}: ${error}`;
+          console.error(errorMessage);
+          processingErrors.push(errorMessage);
+        } finally {
+          // Always clean up the temporary file
+          try {
+            if (fs.existsSync(file.path)) {
+              fs.unlinkSync(file.path);
+              console.log(`Cleaned up temporary file: ${file.path}`);
+            }
+          } catch (cleanupError) {
+            console.error(`Failed to clean up file ${file.path}:`, cleanupError);
           }
         }
       }
 
-      res.json({ candidates: extractedCandidates });
+      // Return results with any processing errors
+      const response: any = { candidates: extractedCandidates };
+      if (processingErrors.length > 0) {
+        response.errors = processingErrors;
+        response.message = `Processed ${extractedCandidates.length} of ${files.length} files successfully`;
+      }
+
+      res.json(response);
+
     } catch (error) {
       console.error("Error in resume upload:", error);
       res.status(500).json({ message: "Failed to process resumes" });
@@ -523,14 +568,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const candidate of candidates) {
         try {
           const candidateData = insertCandidateSchema.parse({
-            name: candidate.name,
+            candidateName: candidate.name,
             email: candidate.email,
-            skills: candidate.skills,
-            experience: candidate.experience,
-            resumeText: candidate.summary,
+            candidateSkills: candidate.skills,
+            candidateExperience: candidate.experience,
+            resumeUrl: candidate.summary,
             status: 'resume_reviewed',
             jobId: parseInt(jobId),
-            addedByUserId: sessionUser.id,
+            hrHandlingUserId: sessionUser.id,
             matchPercentage: candidate.matchPercentage || null
           });
 

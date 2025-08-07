@@ -38,10 +38,12 @@ The application uses a PostgreSQL database with the following core entities:
 
 ### Key Features Architecture
 - **Multi-role Dashboard**: Role-based UI rendering with different permissions and views
-- **File Upload System**: Resume processing with skill extraction and matching algorithms
+- **AI-Powered Resume Processing**: Real PDF/DOCX parsing with Gemini AI extraction and analysis
+- **Intelligent Job Matching**: AI-driven candidate-to-job matching with percentage scores and gap analysis
+- **Interview Question Generation**: Tailored technical and behavioral questions based on candidate profiles
 - **Real-time Notifications**: Live updates for application status changes
 - **Responsive Design**: Mobile-first approach with professional theming
-- **AI Integration Points**: Structured for resume analysis and interview automation
+- **File Upload System**: Multi-file resume processing with automated cleanup and error handling
 
 ### Development Environment
 - **Build System**: Vite with hot module replacement for development
@@ -64,7 +66,8 @@ The application uses a PostgreSQL database with the following core entities:
 
 ### Backend Services
 - **Database Driver**: Neon serverless PostgreSQL client
-- **File Processing**: Multer for multipart form handling
+- **AI Services**: Google Gemini 2.0 Flash for resume analysis, job matching, and question generation
+- **File Processing**: pdf-parse for PDF extraction, mammoth for DOCX parsing, multer for multipart forms
 - **Session Store**: connect-pg-simple for PostgreSQL session persistence
 
 ### Development Tools

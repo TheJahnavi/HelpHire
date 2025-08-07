@@ -69,11 +69,19 @@ export default function Upload() {
         title: "Success",
         description: `Extracted ${data.candidates.length} candidate profiles using AI`,
       });
+      
+      if (data.errors && data.errors.length > 0) {
+        toast({
+          title: "Warning",
+          description: data.message || "Some files had processing errors",
+          variant: "destructive",
+        });
+      }
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to process resumes. Please try again.",
+        description: error.message || "Failed to process resumes. Please try again.",
         variant: "destructive",
       });
     },
@@ -95,10 +103,10 @@ export default function Upload() {
         description: "Candidates matched against job requirements",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to match candidates. Please try again.",
+        description: error.message || "Failed to match candidates. Please try again.",
         variant: "destructive",
       });
     },
@@ -120,6 +128,13 @@ export default function Upload() {
       toast({
         title: "Interview Questions Generated",
         description: "AI-tailored questions ready for interview",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate questions",
+        variant: "destructive",
       });
     },
   });
@@ -151,10 +166,10 @@ export default function Upload() {
         description: data.message,
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to add candidates to database",
+        description: error.message || "Failed to add candidates to database",
         variant: "destructive",
       });
     },
@@ -300,11 +315,11 @@ export default function Upload() {
                     <SelectValue placeholder="Select a job position" />
                   </SelectTrigger>
                   <SelectContent>
-                    {jobs?.map((job: any) => (
+                    {jobs && Array.isArray(jobs) ? jobs.map((job: any) => (
                       <SelectItem key={job.id} value={job.id.toString()}>
                         {job.jobTitle} - {job.jobLocation}
                       </SelectItem>
-                    ))}
+                    )) : null}
                   </SelectContent>
                 </Select>
                 <Button 
