@@ -36,6 +36,7 @@ export interface IStorage {
   
   // Job operations
   getJobsByCompany(companyId: number): Promise<Job[]>;
+  getJob(jobId: number): Promise<Job | undefined>;
   createJob(job: InsertJob): Promise<Job>;
   
   // Candidate operations
@@ -53,7 +54,10 @@ export interface IStorage {
   markNotificationAsRead(id: number): Promise<Notification>;
   
   // Dashboard stats
-  getDashboardStats(companyId: number, userId: string): Promise<any>;
+  getJobStats(companyId: number): Promise<any>;
+  getCandidateStats(companyId: number): Promise<any>;
+  getPipelineData(companyId: number): Promise<any>;
+  getChartData(companyId: number): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -102,6 +106,11 @@ export class DatabaseStorage implements IStorage {
   // Job operations
   async getJobsByCompany(companyId: number): Promise<Job[]> {
     return await db.select().from(jobs).where(eq(jobs.companyId, companyId));
+  }
+
+  async getJob(jobId: number): Promise<Job | undefined> {
+    const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId));
+    return job;
   }
 
   async createJob(jobData: InsertJob): Promise<Job> {

@@ -1,0 +1,27 @@
+1. Resume Upload and Data Extraction
+Frontend Action: The user navigates to the /hr/upload page. They are presented with a file upload interface where they can select one or more resume files. Upon submission, the frontend sends these files via an HTTP POST request to a specific backend endpoint: /api/upload/resumes.
+
+Backend Action: The backend receives the resume files at the /api/upload/resumes endpoint. An AI agent is invoked to process each resume. This agent reads the file content and, using a prompt, extracts key information: name, email, skills, experience, and projects. It formats this data into a JSON object.
+
+Result on Frontend: The backend sends the JSON data back to the frontend. The user sees this data presented in a table. Each row represents a candidate and includes columns for their name, email, skills, and experience. A "very short summary report link" is also available, which, when clicked, opens a popup displaying the detailed report.
+
+2. Job Matching
+Frontend Action: The user selects a job from a dropdown list. This list is populated with job_titles from the jobs table in the database where the job_status is "Active". The frontend then sends the extracted candidate data, along with the selected job's details (its ID, description, skills, experience, and any relevant notes) to a backend endpoint: /api/ai/match-candidates.
+
+Backend Action: The backend's "Percentage Match" agent receives the data. It uses the AI to compare the candidate's skills and experience against the job's requirements. The AI calculates an overall match percentage and generates a brief summary report. This information is returned to the frontend.
+
+Result on Frontend: The table on the frontend updates to show the match percentage and a brief report summary for the selected candidate. A new column or button, labeled "Generate Interview Questions", appears next to the candidate's record. This button acts as a hyperlink to initiate the next flow.
+
+3. Interview Question Generation
+Frontend Action: The user clicks the "Generate Interview Questions" button for a specific candidate. The frontend then sends the candidate's resume summary (their extracted experience and projects) and the job's details to the backend endpoint: /api/ai/generate-questions.
+
+Backend Action: The backend's "Interview Question Generation" agent uses this information to create a list of tailored interview questions. These questions are specifically designed based on the candidate's resume summary, the job description, skills, and any notes from the job record. The list is sent back to the frontend.
+
+Result on Frontend: The user is shown a list of personalized interview questions, which can be used for the candidate's interview.
+
+4. Add Candidates
+Frontend Action: The user selects one or more candidates from the table and clicks the "Add candidates" button. The frontend sends the data for the selected candidates to a new backend endpoint: /api/candidates/add.
+
+Backend Action: The backend receives the selected candidates. For each candidate, it assigns a unique and randomly generated ID and sets their status to "resume_reviewed". It then saves the complete candidate record to the candidates table in the database.
+
+Result on Frontend: The user receives a confirmation message indicating that the selected candidates have been successfully added to the database.

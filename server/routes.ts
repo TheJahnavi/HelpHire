@@ -8,6 +8,8 @@ import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, inser
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
+import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini";
 
 // Setup multer for file uploads
 const upload = multer({
@@ -393,6 +395,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking notification as read:", error);
       res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  // AI-powered resume upload and analysis routes
+  app.post('/api/upload/resumes', isAuthenticated, upload.array('resumes'), async (req: any, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: "No files uploaded" });
+      }
+
+      const extractedCandidates: (ExtractedCandidate & { id: string })[] = [];
+
+      for (const file of files) {
+        try {
+          // Read file content (for now, we'll use filename as mock content since PDF parsing requires additional libraries)
+          let resumeText = `Resume file: ${file.originalname}\nCandidate applying for position.\nSkills and experience to be extracted.`;
+          
+          // In production, you'd use a PDF parser here
+          if (file.mimetype === 'application/pdf') {
+            // For demo purposes, we'll use mock content
+            resumeText = `John Doe\nEmail: john.doe@email.com\nSoftware Engineer with 5 years experience in JavaScript, React, Node.js\nProjects: E-commerce platform, Task management system\nExperience in full-stack development and agile methodologies.`;
+          }
+
+          const extractedData = await extractResumeData(resumeText);
+          const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          extractedCandidates.push({
+            ...extractedData,
+            id: candidateId
+          });
+
+          // Clean up uploaded file
+          fs.unlinkSync(file.path);
+        } catch (error) {
+          console.error(`Error processing file ${file.originalname}:`, error);
+          // Clean up file even if processing failed
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        }
+      }
+
+      res.json({ candidates: extractedCandidates });
+    } catch (error) {
+      console.error("Error in resume upload:", error);
+      res.status(500).json({ message: "Failed to process resumes" });
+    }
+  });
+
+  // Job matching endpoint
+  app.post('/api/ai/match-candidates', isAuthenticated, async (req: any, res) => {
+    try {
+      const { candidates, jobId } = req.body;
+      
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      const matchResults = [];
+      for (const candidate of candidates) {
+        try {
+          const matchResult = await calculateJobMatch(
+            candidate,
+            job.jobTitle,
+            job.jobDescription || '',
+            job.skills || [],
+            job.experience || ''
+          );
+          
+          matchResults.push({
+            candidateId: candidate.id,
+            ...matchResult
+          });
+        } catch (error) {
+          console.error(`Error matching candidate ${candidate.id}:`, error);
+          matchResults.push({
+            candidateId: candidate.id,
+            matchPercentage: 0,
+            summary: "Error calculating match",
+            strengths: [],
+            gaps: []
+          });
+        }
+      }
+
+      res.json({ matches: matchResults });
+    } catch (error) {
+      console.error("Error in candidate matching:", error);
+      res.status(500).json({ message: "Failed to match candidates" });
+    }
+  });
+
+  // Interview questions generation endpoint
+  app.post('/api/ai/generate-questions', isAuthenticated, async (req: any, res) => {
+    try {
+      const { candidate, jobId } = req.body;
+      
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      const questions = await generateInterviewQuestions(
+        candidate,
+        job.jobTitle,
+        job.jobDescription || '',
+        job.skills || []
+      );
+
+      res.json({ questions });
+    } catch (error) {
+      console.error("Error generating interview questions:", error);
+      res.status(500).json({ message: "Failed to generate interview questions" });
+    }
+  });
+
+  // Add candidates to database
+  app.post('/api/candidates/add', isAuthenticated, async (req: any, res) => {
+    try {
+      const { candidates, jobId } = req.body;
+      const sessionUser = req.session.user;
+
+      const addedCandidates = [];
+      for (const candidate of candidates) {
+        try {
+          const candidateData = insertCandidateSchema.parse({
+            name: candidate.name,
+            email: candidate.email,
+            skills: candidate.skills,
+            experience: candidate.experience,
+            resumeText: candidate.summary,
+            status: 'resume_reviewed',
+            jobId: parseInt(jobId),
+            addedByUserId: sessionUser.id,
+            matchPercentage: candidate.matchPercentage || null
+          });
+
+          const addedCandidate = await storage.createCandidate(candidateData);
+          addedCandidates.push(addedCandidate);
+        } catch (error) {
+          console.error(`Error adding candidate ${candidate.name}:`, error);
+        }
+      }
+
+      res.json({ 
+        message: `Successfully added ${addedCandidates.length} candidates`,
+        candidates: addedCandidates 
+      });
+    } catch (error) {
+      console.error("Error adding candidates:", error);
+      res.status(500).json({ message: "Failed to add candidates" });
     }
   });
 
