@@ -16,12 +16,12 @@ import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type 
 const upload = multer({
   dest: 'uploads/',
   fileFilter: (req, file, cb) => {
-    const allowedExtensions = ['.pdf', '.docx'];
+    const allowedExtensions = ['.pdf', '.docx', '.txt'];
     const fileExtension = path.extname(file.originalname).toLowerCase();
     if (allowedExtensions.includes(fileExtension)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF and DOCX files are allowed'));
+      cb(new Error('Only PDF, DOCX, and TXT files are allowed'));
     }
   },
   limits: {
@@ -414,6 +414,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Parse DOCX file
         const result = await mammoth.extractRawText({ path: file.path });
         return result.value;
+      } else if (fileExtension === '.txt') {
+        // Parse TXT file
+        return fs.readFileSync(file.path, 'utf-8');
       } else {
         throw new Error(`Unsupported file type: ${fileExtension}`);
       }
