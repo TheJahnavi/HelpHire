@@ -1,0 +1,55 @@
+modifications in AI Data Extraction
+
+update the `uploadMutation` to use a Gemini API call to extract resume data. The API agent will return a JSON object for each candidate, in it modify the experience field  following this structure for the `experience` field:
+
+  * **Experience Object Structure:**
+    ```json
+    {
+      "experience": {
+        "years": <number>,
+        "projects": [
+          {
+            "name": "<string>",
+            "skills": ["<string>", "<string>", ...]
+          },
+          ...
+        ]
+      }
+    }
+    ```
+
+modifications in  AI Percentage Match
+
+modify the `matchMutation` to call a dedicated AI agent that performs a detailed comparison between the extracted candidate data and the selected job role. The agent's response will be a JSON object, which will be stored in the `matchResults` state.
+
+  * **AI Comparison:** The AI will analyze the candidate's skills and experience against the job title and requirements.
+  * **Detailed Match Report Structure:** The AI's response will follow your requested JSON schema exactly:
+    ```json
+    {
+      "name": "<string>",
+      "matchPercentage": "<number>",
+      "summary": "<string>",
+      "strengthsBehindReasons": [
+        {
+          "reason": "skillsstring[]",
+          "points": "<number>",
+          "experience list": "technoligystring[]"
+        }
+      ],
+      "lagBehindReasons": [
+        {
+          "reason": "<string>",
+          "points": "<number>",
+          "gaps": "<string>"
+        }
+      ]
+    }
+    ```
+
+changes in Temporary Data Storage & Debugging
+
+All extracted and matched data will be stored temporarily in the component's state (`extractedCandidates` and `matchResults`). To ensure the final data is ready for submission,
+
+  * **Verify Data Capture:** Before a candidate is "added" (which currently means adding to a temporary data store), the code will use `console.log()` to output the data for each selected candidate.
+  * **Final Check:** This debugging step should allow us to confirm that all required fields from the candidates table are correctly populated from the temporary state, including `id`, `candidate_name`, `email`, `job_id`, `candidate_skills`, `candidate_experience`, `match_percentage`, `status`, `resume_url`, `hr_handling_user_id`, `report_link`, `interview_link`, and `created_at`.
+  and selected candidates data is added to the candidates table 

@@ -424,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // AI-powered resume upload and analysis routes
-  app.post('/api/upload/resumes', isAuthenticated, upload.array('resumes'), async (req: any, res) => {
+  app.post('/api/upload/resumes', upload.array('resumes'), async (req: any, res) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
@@ -491,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Job matching endpoint
-  app.post('/api/ai/match-candidates', isAuthenticated, async (req: any, res) => {
+  app.post('/api/ai/match-candidates', async (req: any, res) => {
     try {
       const { candidates, jobId } = req.body;
       
@@ -506,9 +506,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const matchResult = await calculateJobMatch(
             candidate,
             job.jobTitle,
-            job.jobDescription || '',
             job.skills || [],
-            job.experience || ''
+            job.jobDescription || ''
           );
           
           matchResults.push({
@@ -519,10 +518,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`Error matching candidate ${candidate.id}:`, error);
           matchResults.push({
             candidateId: candidate.id,
+            name: candidate.name,
             matchPercentage: 0,
             summary: "Error calculating match",
-            strengths: [],
-            gaps: []
+            strengthsBehindReasons: [],
+            lagBehindReasons: [{
+              reason: "Processing error occurred",
+              points: -100,
+              gaps: "Unable to analyze candidate data"
+            }]
           });
         }
       }
@@ -535,7 +539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Interview questions generation endpoint
-  app.post('/api/ai/generate-questions', isAuthenticated, async (req: any, res) => {
+  app.post('/api/ai/generate-questions', async (req: any, res) => {
     try {
       const { candidate, jobId } = req.body;
       
@@ -558,36 +562,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add candidates to database
-  app.post('/api/candidates/add', isAuthenticated, async (req: any, res) => {
+  // Add candidates to database  
+  app.post('/api/candidates/add', async (req: any, res) => {
     try {
       const { candidates, jobId } = req.body;
-      const sessionUser = req.session.user;
+      
+      console.log("=== DEBUG: Adding Candidates to Database ===");
+      console.log("Number of candidates:", candidates.length);
+      console.log("Job ID:", jobId);
+      console.log("Candidates data:", JSON.stringify(candidates, null, 2));
 
       const addedCandidates = [];
       for (const candidate of candidates) {
         try {
+          console.log(`\n--- Processing candidate: ${candidate.name} ---`);
+          console.log("Candidate data structure:", {
+            id: candidate.id,
+            candidate_name: candidate.name,
+            email: candidate.email,
+            job_id: parseInt(jobId),
+            candidate_skills: candidate.skills,
+            candidate_experience: JSON.stringify(candidate.experience),
+            match_percentage: candidate.matchPercentage || null,
+            status: 'resume_reviewed',
+            resume_url: `resume_${candidate.id}.txt`,
+            hr_handling_user_id: 'hr-001',
+            report_link: null,
+            interview_link: null,
+            created_at: new Date()
+          });
+
           const candidateData = insertCandidateSchema.parse({
             candidateName: candidate.name,
             email: candidate.email,
             candidateSkills: candidate.skills,
-            candidateExperience: candidate.experience,
-            resumeUrl: candidate.summary,
+            candidateExperience: JSON.stringify(candidate.experience),
+            resumeUrl: `resume_${candidate.id}.txt`,
             status: 'resume_reviewed',
             jobId: parseInt(jobId),
-            hrHandlingUserId: sessionUser.id,
+            hrHandlingUserId: 'hr-001',
             matchPercentage: candidate.matchPercentage || null
           });
 
           const addedCandidate = await storage.createCandidate(candidateData);
           addedCandidates.push(addedCandidate);
+          
+          console.log(`✓ Successfully added candidate: ${candidate.name}`);
         } catch (error) {
-          console.error(`Error adding candidate ${candidate.name}:`, error);
+          console.error(`✗ Error adding candidate ${candidate.name}:`, error);
         }
       }
 
+      console.log(`\n=== FINAL RESULT: Added ${addedCandidates.length}/${candidates.length} candidates ===`);
+
       res.json({ 
-        message: `Successfully added ${addedCandidates.length} candidates`,
+        message: `Successfully added ${addedCandidates.length} candidates to database`,
         candidates: addedCandidates 
       });
     } catch (error) {

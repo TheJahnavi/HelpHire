@@ -2,20 +2,42 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
+export interface ProjectData {
+  name: string;
+  skills: string[];
+}
+
+export interface ExperienceData {
+  years: number;
+  projects: ProjectData[];
+}
+
 export interface ExtractedCandidate {
   name: string;
   email: string;
   skills: string[];
-  experience: string;
-  projects: string[];
+  experience: ExperienceData;
   summary: string;
 }
 
+export interface StrengthReason {
+  reason: string;
+  points: number;
+  experienceList: string[];
+}
+
+export interface LagReason {
+  reason: string;
+  points: number;
+  gaps: string;
+}
+
 export interface JobMatchResult {
+  name: string;
   matchPercentage: number;
   summary: string;
-  strengths: string[];
-  gaps: string[];
+  strengthsBehindReasons: StrengthReason[];
+  lagBehindReasons: LagReason[];
 }
 
 export interface InterviewQuestions {
@@ -33,8 +55,15 @@ export async function extractResumeData(resumeText: string): Promise<ExtractedCa
       "name": "Full name of the candidate",
       "email": "Email address if found",
       "skills": ["array", "of", "technical", "skills"],
-      "experience": "Brief summary of work experience (2-3 sentences)",
-      "projects": ["array", "of", "key", "projects"],
+      "experience": {
+        "years": <number of years of professional experience>,
+        "projects": [
+          {
+            "name": "Project name",
+            "skills": ["skills", "used", "in", "project"]
+          }
+        ]
+      },
       "summary": "One paragraph professional summary"
     }
     
@@ -54,11 +83,27 @@ export async function extractResumeData(resumeText: string): Promise<ExtractedCa
             name: { type: "string" },
             email: { type: "string" },
             skills: { type: "array", items: { type: "string" } },
-            experience: { type: "string" },
-            projects: { type: "array", items: { type: "string" } },
+            experience: {
+              type: "object",
+              properties: {
+                years: { type: "number" },
+                projects: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      skills: { type: "array", items: { type: "string" } }
+                    },
+                    required: ["name", "skills"]
+                  }
+                }
+              },
+              required: ["years", "projects"]
+            },
             summary: { type: "string" }
           },
-          required: ["name", "email", "skills", "experience", "projects", "summary"]
+          required: ["name", "email", "skills", "experience", "summary"]
         }
       },
       contents: prompt,
@@ -76,38 +121,42 @@ export async function extractResumeData(resumeText: string): Promise<ExtractedCa
   }
 }
 
-export async function calculateJobMatch(
-  candidate: ExtractedCandidate,
-  jobTitle: string,
-  jobDescription: string,
-  requiredSkills: string[],
-  requiredExperience: string
-): Promise<JobMatchResult> {
+export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle: string, jobSkills: string[], jobDescription: string): Promise<JobMatchResult> {
   try {
     const prompt = `
-    As a hiring expert, analyze how well this candidate matches the job requirements:
+    Compare this candidate against the job requirements and provide a detailed match analysis:
     
-    CANDIDATE:
-    Name: ${candidate.name}
-    Skills: ${candidate.skills.join(", ")}
-    Experience: ${candidate.experience}
-    Projects: ${candidate.projects.join(", ")}
+    Candidate:
+    - Name: ${candidate.name}
+    - Skills: ${candidate.skills.join(', ')}
+    - Experience: ${candidate.experience.years} years
+    - Projects: ${candidate.experience.projects.map(p => `${p.name} (${p.skills.join(', ')})`).join('; ')}
     
-    JOB REQUIREMENTS:
-    Title: ${jobTitle}
-    Description: ${jobDescription}
-    Required Skills: ${requiredSkills.join(", ")}
-    Required Experience: ${requiredExperience}
+    Job Requirements:
+    - Title: ${jobTitle}
+    - Required Skills: ${jobSkills.join(', ')}
+    - Description: ${jobDescription}
     
-    Provide analysis in JSON format:
+    Provide response in JSON format:
     {
-      "matchPercentage": number (0-100),
-      "summary": "2-3 sentence overall match assessment",
-      "strengths": ["array", "of", "candidate", "strengths"],
-      "gaps": ["array", "of", "missing", "requirements"]
+      "name": "${candidate.name}",
+      "matchPercentage": <number 0-100>,
+      "summary": "Brief summary of the match",
+      "strengthsBehindReasons": [
+        {
+          "reason": "Description of strength",
+          "points": <positive points earned>,
+          "experienceList": ["technologies", "or", "skills", "that", "support", "this"]
+        }
+      ],
+      "lagBehindReasons": [
+        {
+          "reason": "Description of gap or weakness",
+          "points": <negative points deducted>,
+          "gaps": "Specific missing skills or experience"
+        }
+      ]
     }
-    
-    Return only valid JSON, no additional text.
     `;
 
     const response = await ai.models.generateContent({
@@ -117,12 +166,35 @@ export async function calculateJobMatch(
         responseSchema: {
           type: "object",
           properties: {
+            name: { type: "string" },
             matchPercentage: { type: "number" },
             summary: { type: "string" },
-            strengths: { type: "array", items: { type: "string" } },
-            gaps: { type: "array", items: { type: "string" } }
+            strengthsBehindReasons: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  reason: { type: "string" },
+                  points: { type: "number" },
+                  experienceList: { type: "array", items: { type: "string" } }
+                },
+                required: ["reason", "points", "experienceList"]
+              }
+            },
+            lagBehindReasons: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  reason: { type: "string" },
+                  points: { type: "number" },
+                  gaps: { type: "string" }
+                },
+                required: ["reason", "points", "gaps"]
+              }
+            }
           },
-          required: ["matchPercentage", "summary", "strengths", "gaps"]
+          required: ["name", "matchPercentage", "summary", "strengthsBehindReasons", "lagBehindReasons"]
         }
       },
       contents: prompt,
@@ -153,8 +225,8 @@ export async function generateInterviewQuestions(
     CANDIDATE:
     Name: ${candidate.name}
     Skills: ${candidate.skills.join(", ")}
-    Experience: ${candidate.experience}
-    Projects: ${candidate.projects.join(", ")}
+    Experience: ${candidate.experience.years} years
+    Projects: ${candidate.experience.projects.map(p => `${p.name} (${p.skills.join(', ')})`).join('; ')}
     
     JOB:
     Title: ${jobTitle}
