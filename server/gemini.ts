@@ -50,27 +50,36 @@ export interface InterviewQuestions {
 export async function extractResumeData(resumeText: string): Promise<ExtractedCandidate> {
   try {
     const prompt = `
-    Analyze this resume text and extract the following information in JSON format:
+    Analyze this actual resume text carefully and extract accurate information. Read through the entire content thoroughly:
     
+    RESUME CONTENT:
+    ${resumeText}
+    
+    EXTRACTION REQUIREMENTS:
+    - Extract the EXACT name from the resume
+    - Find the ACTUAL email address (look for @ symbol)  
+    - List ALL technical skills, tools, frameworks, languages mentioned
+    - Calculate TOTAL years of professional experience by adding up all job durations
+    - Extract ACTUAL job positions/projects with their real skill sets and durations
+    - Write a summary based on what's ACTUALLY in this specific resume
+    
+    Return in this JSON format:
     {
-      "name": "Full name of the candidate",
-      "email": "Email address if found",
-      "skills": ["array", "of", "technical", "skills"],
+      "name": "Exact full name from resume",
+      "email": "Actual email from resume", 
+      "skills": ["All", "technical", "skills", "found", "in", "resume"],
       "experience": {
-        "years": <total number of years of professional experience>,
+        "years": <sum of all job experience years>,
         "projects": [
           {
-            "name": "Project or job position name",
-            "skills": ["skills", "used", "in", "this", "project"],
-            "years": <number of years spent on this project/position>
+            "name": "Actual job title or project name from resume",
+            "skills": ["actual", "skills", "from", "this", "position"],
+            "years": <actual duration of this position>
           }
         ]
       },
-      "summary": "Brief 4-line summary of resume highlighting key projects and achievements that fit on webpage"
+      "summary": "4-line summary based on actual resume content mentioning specific technologies and achievements from this resume"
     }
-    
-    Resume text:
-    ${resumeText}
     
     Return only valid JSON, no additional text.
     `;
@@ -155,10 +164,11 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
     ${jobExperience ? `- Experience Required: ${jobExperience}` : ''}
     ${jobNotes ? `- Additional Notes: ${jobNotes}` : ''}
     
-    IMPORTANT CALCULATION RULES:
-    - Use exactly ${basePercentage}% as the match percentage for consistency
-    - Strengths points + |Areas for Improvement points| must equal 100
-    - Match percentage = Strengths points - |Areas for Improvement points|
+    CRITICAL SCORING RULES:
+    - Use exactly ${basePercentage}% as the match percentage for consistency  
+    - Sum of all Strengths points + absolute sum of all Areas for Improvement points MUST equal exactly 100
+    - The match percentage should equal: Sum of Strengths points - absolute sum of Areas for Improvement points
+    - Example: If match is 78%, then Strengths: 89 points, Areas for Improvement: -11 points (89 + 11 = 100)
     
     Provide response in JSON format:
     {

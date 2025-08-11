@@ -601,7 +601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             candidateName: candidate.name,
             email: candidate.email,
             candidateSkills: candidate.skills,
-            candidateExperience: JSON.stringify(candidate.experience),
+            candidateExperience: candidate.experience.years,
             resumeUrl: `resume_${candidate.id}.txt`,
             status: 'resume_reviewed',
             jobId: parseInt(jobId),
