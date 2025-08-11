@@ -49,8 +49,9 @@ interface ExtractedCandidate {
     projects: {
       name: string;
       skills: string[];
+      years: number;
     }[];
-  }; // Updated experience object
+  };
   summary: string;
 }
 
@@ -68,8 +69,9 @@ interface LagBehindReason {
 
 interface JobMatch {
   candidateId: string;
+  name: string;
   matchPercentage: number;
-  summary: string;
+  "percentage match summary": string;
   strengthsBehindReasons?: StrengthsBehindReason[];
   lagBehindReasons?: LagBehindReason[];
 }
@@ -84,6 +86,7 @@ interface InterviewQuestions {
 const projectSchema = z.object({
   name: z.string(),
   skills: z.array(z.string()),
+  years: z.number(),
 });
 
 const experienceSchema = z.object({
@@ -113,11 +116,11 @@ const lagBehindReasonSchema = z.object({
 });
 
 const jobMatchSchema = z.object({
-  candidateId: z.string(),
+  name: z.string(),
   matchPercentage: z.number().min(0).max(100),
-  summary: z.string(),
-  strengthsBehindReasons: z.array(strengthsBehindReasonSchema).optional(),
-  lagBehindReasons: z.array(lagBehindReasonSchema).optional(),
+  "percentage match summary": z.string(),
+  strengthsBehindReasons: z.array(strengthsBehindReasonSchema),
+  lagBehindReasons: z.array(lagBehindReasonSchema),
 });
 
 export default function Upload() {
@@ -156,96 +159,65 @@ export default function Upload() {
     });
   };
 
-  // Mutation to handle file upload and data extraction
+  // Mutation to handle file upload and AI data extraction
   const uploadMutation = useMutation({
-    mutationFn: async (files: FileList) => {
-      const allExtractedCandidates: ExtractedCandidate[] = [];
-
-      for (const file of Array.from(files)) {
-        const base64Data = await readFileAsBase64(file);
-        const mimeType = file.type;
-        const prompt = "Extract the key details from this resume. Provide the name, email, skills, and a detailed experience section including the total years and a list of projects with their associated skills. Also, provide a summary. Provide the response as a JSON object.";
-
-        // API call to the Gemini model with a structured schema
-        const payload = {
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: mimeType,
-                    data: base64Data.split(',')[1],
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: extractedCandidateSchema,
-          },
-        };
-        const apiKey = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-        // Exponential backoff for API retries
-        let response;
-        for (let i = 0; i < 3; i++) {
-          try {
-            response = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            if (response.status !== 429) break; // Break if not a rate limit error
-            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
-          } catch (e) {
-            if (i === 2) throw e;
-            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
-          }
-        }
-        if (!response?.ok) {
-          throw new Error(`API call failed with status: ${response?.status}`);
-        }
-        const result = await response.json();
-        const jsonString = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (jsonString) {
-          try {
-            const extractedData = JSON.parse(jsonString);
-            const validatedData = extractedCandidateSchema.parse(extractedData);
-            allExtractedCandidates.push({
-              ...validatedData,
-              id: crypto.randomUUID(), // Add a unique ID
-            });
-          } catch (e) {
-            console.error("Failed to parse or validate AI response:", e);
-          }
-        }
+    mutationFn: async ({ files, jobId }: { files: File[]; jobId: string }) => {
+      if (!jobId) {
+        throw new Error("Please select a job role first");
       }
-      return { candidates: allExtractedCandidates };
+      
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append("resumes", file);
+      });
+
+      // Upload resumes and extract data
+      const extractResult = await apiRequest("/api/upload/resumes", {
+        method: "POST",
+        body: formData,
+      });
+
+      // Automatically trigger matching after extraction
+      const matchResult = await apiRequest("/api/ai/match-candidates", {
+        method: "POST",
+        body: JSON.stringify({
+          candidates: extractResult.candidates,
+          jobId: jobId,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
+
+      return { ...extractResult, matches: matchResult.matches };
     },
     onSuccess: (data) => {
-      setExtractedCandidates(data.candidates);
-      setCurrentStep("extracted");
+      const candidatesWithIds = data.candidates.map((candidate: any, index: number) => ({
+        ...candidate,
+        id: candidate.id || `temp_${Date.now()}_${index}`,
+      }));
+      
+      setExtractedCandidates(candidatesWithIds);
+      setMatchResults(data.matches.map((match: any, index: number) => ({
+        ...match,
+        candidateId: candidatesWithIds[index]?.id || `temp_${Date.now()}_${index}`,
+      })));
+      setCurrentStep("matched");
+      
       toast({
         title: "Success",
-        description: `Extracted ${data.candidates.length} candidate profiles using AI`,
+        description: `Extracted and matched ${data.candidates.length} candidates`,
       });
     },
     onError: (error: any) => {
+      console.error("Upload error:", error);
       toast({
         title: "Error",
-        description:
-          error.message || "Failed to process resumes. Please try again.",
+        description: error.message || "Failed to process resumes. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  // Mutation to handle candidate matching against a job
+  // Legacy match mutation (keeping for backward compatibility)
   const matchMutation = useMutation({
     mutationFn: async ({
       candidates,
@@ -254,91 +226,31 @@ export default function Upload() {
       candidates: ExtractedCandidate[];
       jobId: string;
     }) => {
-      const job = jobs.find((j: any) => j.id.toString() === jobId);
-      if (!job) {
-        throw new Error("Job not found.");
-      }
-
-      const allMatches: JobMatch[] = [];
-
-      for (const candidate of candidates) {
-        const prompt = `You are an expert HR analyst. Compare the following candidate's resume data with the job description.
-
-        Candidate Resume Data:
-        Name: ${candidate.name}
-        Skills: ${candidate.skills.join(", ")}
-        Experience: ${candidate.experience.years} years. Projects: ${candidate.experience.projects.map(p => p.name).join(", ")}
-        Summary: ${candidate.summary}
-
-        Job Description:
-        Title: ${job.jobTitle}
-        Requirements: ${job.jobDescription}
-
-        Provide a match report as a JSON object, calculating a match percentage and providing a summary. Also, list specific strengths and lags based on the provided schemas.`;
-
-        // API call to the Gemini model with a structured schema for the match report
-        const payload = {
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: jobMatchSchema,
-          },
-        };
-
-        const apiKey = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-        let response;
-        for (let i = 0; i < 3; i++) {
-          try {
-            response = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            if (response.status !== 429) break;
-            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
-          } catch (e) {
-            if (i === 2) throw e;
-            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
-          }
-        }
-        if (!response?.ok) {
-          throw new Error(`API call failed with status: ${response?.status}`);
-        }
-        const result = await response.json();
-        const jsonString = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (jsonString) {
-          try {
-            const matchData = JSON.parse(jsonString);
-            const validatedMatch = jobMatchSchema.parse({ ...matchData, candidateId: candidate.id });
-            allMatches.push(validatedMatch);
-          } catch (e) {
-            console.error("Failed to parse or validate AI match response:", e);
-          }
-        }
-      }
-      return { matches: allMatches };
+      return apiRequest("/api/ai/match-candidates", {
+        method: "POST",
+        body: JSON.stringify({ candidates, jobId }),
+        headers: { "Content-Type": "application/json" },
+      });
     },
-    onSuccess: (data: any) => {
-      setMatchResults(data.matches);
+    onSuccess: (data) => {
+      const matchesWithIds = data.matches.map((match: any, index: number) => ({
+        ...match,
+        candidateId: extractedCandidates[index]?.id || `temp_${Date.now()}_${index}`,
+      }));
+      
+      setMatchResults(matchesWithIds);
       setCurrentStep("matched");
+      
       toast({
-        title: "AI Analysis Complete",
-        description: "Candidates matched against job requirements",
+        title: "Success",
+        description: `Matched ${data.matches.length} candidates against job requirements`,
       });
     },
     onError: (error: any) => {
+      console.error("Match error:", error);
       toast({
         title: "Error",
-        description:
-          error.message || "Failed to match candidates. Please try again.",
+        description: error.message || "Failed to match candidates",
         variant: "destructive",
       });
     },
@@ -379,77 +291,53 @@ export default function Upload() {
 
   // Mutation to add selected candidates to the database
   const addCandidatesMutation = useMutation({
-    mutationFn: async () => {
-      const candidatesToSubmit = extractedCandidates
-        .filter((candidate) => selectedCandidates.includes(candidate.id))
-        .map((candidate) => {
-          const match = matchResults.find(
-            (m) => m.candidateId === candidate.id,
-          );
+    mutationFn: async (selectedCandidateIds: string[]) => {
+      const selectedData = selectedCandidateIds.map(id => {
+        const candidate = extractedCandidates.find(c => c.id === id);
+        const match = matchResults.find(m => m.candidateId === id);
+        
+        if (!candidate || !match) {
+          throw new Error(`Missing data for candidate ${id}`);
+        }
 
-          // Debugging log to verify all data is captured
-          console.log("Candidate data to be added:", {
-            id: crypto.randomUUID(),
-            candidate_name: candidate.name,
-            email: candidate.email,
-            job_id: parseInt(selectedJobId),
-            candidate_skills: candidate.skills.join(","),
-            candidate_experience: candidate.experience.years.toString(),
-            match_percentage: match?.matchPercentage || 0,
-            status: "resume_reviewed",
-            resume_url: "",
-            hr_handling_user_id: "",
-            report_link: "",
-            interview_link: "",
-            created_at: new Date().toISOString(),
-          });
+        const candidateData = {
+          candidate_name: candidate.name,
+          email: candidate.email,
+          job_id: parseInt(selectedJobId),
+          candidate_skills: candidate.skills,
+          candidate_experience: candidate.experience,
+          match_percentage: match.matchPercentage,
+          status: "resume_reviewed",
+          hr_handling_user_id: "hr-001", // Current user
+          report_link: "",
+          interview_link: "",
+        };
 
-          return {
-            // Using crypto.randomUUID() to generate a unique ID
-            id: crypto.randomUUID(),
-            candidate_name: candidate.name,
-            email: candidate.email,
-            job_id: parseInt(selectedJobId),
-            candidate_skills: candidate.skills.join(","), // Assuming skills are stored as a comma-separated string
-            candidate_experience: candidate.experience.years.toString(),
-            match_percentage: match?.matchPercentage || 0,
-            status: "resume_reviewed", // Setting the status as requested
-            resume_url: "",
-            hr_handling_user_id: "",
-            report_link: "",
-            interview_link: "",
-            created_at: new Date().toISOString(),
-          };
-        });
+        // Debug logging
+        console.log("Final candidate data for submission:", candidateData);
+        
+        return candidateData;
+      });
 
-      // This is a placeholder for a database or API call,
-      // as we are storing data temporarily.
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          console.log("Simulating adding candidates to DB:", candidatesToSubmit);
-          resolve({ success: true, count: candidatesToSubmit.length });
-        }, 1000);
+      return apiRequest("/api/candidates", {
+        method: "POST",
+        body: JSON.stringify({ candidates: selectedData }),
+        headers: { "Content-Type": "application/json" },
       });
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       setCurrentStep("added");
       queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
       toast({
-        title: "Candidates Added",
-        description: `Successfully added ${selectedCandidates.length} candidate(s) to the database.`,
+        title: "Success",
+        description: "Selected candidates have been added to the system",
       });
-      setExtractedCandidates((prev) =>
-        prev.filter((candidate) => !selectedCandidates.includes(candidate.id))
-      );
-      setSelectedCandidates([]);
-      setMatchResults((prev) =>
-        prev.filter((match) => !selectedCandidates.includes(match.candidateId))
-      );
     },
     onError: (error: any) => {
+      console.error("Add candidates error:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add candidates to database",
+        description: error.message || "Failed to add candidates",
         variant: "destructive",
       });
     },
@@ -461,8 +349,15 @@ export default function Upload() {
   };
 
   const handleUpload = () => {
-    if (selectedFiles && selectedFiles.length > 0) {
-      uploadMutation.mutate(selectedFiles);
+    if (selectedFiles && selectedFiles.length > 0 && selectedJobId) {
+      const files = Array.from(selectedFiles);
+      uploadMutation.mutate({ files, jobId: selectedJobId });
+    } else {
+      toast({
+        title: "Error",
+        description: "Please select both files and a job role before uploading",
+        variant: "destructive",
+      });
     }
   };
 
@@ -482,7 +377,15 @@ export default function Upload() {
   };
 
   const handleAddCandidates = () => {
-    addCandidatesMutation.mutate();
+    if (selectedCandidates.length > 0) {
+      addCandidatesMutation.mutate(selectedCandidates);
+    } else {
+      toast({
+        title: "Error",
+        description: "Please select at least one candidate to add",
+        variant: "destructive",
+      });
+    }
   };
 
   // New event handlers for candidate selection and deletion
@@ -637,9 +540,34 @@ export default function Upload() {
                 </div>
               )}
 
+              {/* Job Selection */}
+              <div className="space-y-2">
+                <label htmlFor="job-select" className="text-sm font-medium">
+                  Select Job Role:
+                </label>
+                <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                  <SelectTrigger
+                    id="job-select"
+                    className="w-full"
+                    data-testid="select-job-role"
+                  >
+                    <SelectValue placeholder="Choose a job role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs && Array.isArray(jobs)
+                      ? jobs.map((job: any) => (
+                          <SelectItem key={job.id} value={job.id.toString()}>
+                            {job.jobTitle}
+                          </SelectItem>
+                        ))
+                      : null}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button
                 onClick={handleUpload}
-                disabled={!selectedFiles || uploadMutation.isPending}
+                disabled={!selectedFiles || !selectedJobId || uploadMutation.isPending}
                 className="w-full"
                 data-testid="button-upload-resumes"
               >
@@ -730,7 +658,7 @@ export default function Upload() {
                       <ul className="text-sm mt-2 space-y-1">
                         {candidate.experience.projects.map((project, index) => (
                           <li key={index}>
-                            - {project.name}:{" "}
+                            - {project.name} ({project.years} years):{" "}
                             {project.skills.join(", ")}
                           </li>
                         ))}
@@ -851,7 +779,7 @@ export default function Upload() {
                             <>
                               <Alert>
                                 <AlertCircle className="h-4 w-4" />
-                                <AlertDescription>{match.summary}</AlertDescription>
+                                <AlertDescription>{match["percentage match summary"]}</AlertDescription>
                               </Alert>
 
                               {/* Strengths and Gaps section using the new structure */}

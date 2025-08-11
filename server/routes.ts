@@ -510,7 +510,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             candidate,
             job.jobTitle,
             job.skills || [],
-            job.jobDescription || ''
+            job.jobDescription || '',
+            job.experience || '',
+            job.notes || ''
           );
           
           matchResults.push({

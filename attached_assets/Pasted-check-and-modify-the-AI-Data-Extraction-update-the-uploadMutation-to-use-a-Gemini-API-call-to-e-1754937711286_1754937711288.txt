@@ -1,0 +1,64 @@
+check and modify the AI Data Extraction
+
+update the `uploadMutation` to use a Gemini API call to extract resume data. The API agent will return a JSON object for each candidate, in 
+contains candidate name, mail, skills(list of skills), it modify the experience field  following this structure for the `experience`, and summery( a breaf summery of each resume based on projects and achivemnets mentned in resume with max length of 4lines to fit the web page )field:
+
+  * **Experience Object Structure:**
+    ```json
+    {
+      "experience": {
+        "years": <number>,
+        "projects": [
+          {
+            "name": "<string>",
+            "skills": ["<string>", "<string>", ...]
+			"years": <number>
+          },
+          ...
+        ]
+      }
+    }
+    ```
+after selecting a job role from drop down list(of active job roles) and on click  "upload and extract data" button
+modifications in  AI Percentage Match
+
+modify the `matchMutation` to call a dedicated AI agent that performs a detailed comparison between the extracted candidate data and the selected job role. The agent's response will be a JSON object, which will be stored in the `matchResults` state.
+
+  * **AI Comparison:** The AI will analyze the extracted candidate's skills, summery and experience against the job title, required skills, job description, experience, notes(if given), and requirements.
+  * **Detailed Match Report Structure:** The AI's response will follow JSON schema exactly:
+    ```json
+    {
+      "name": "<string>",
+      "matchPercentage": "<number>",
+      "percentage match summary": "<string>",
+      "strengthsBehindReasons": [
+        {
+          "reason": "skillsstring[]",
+          "points": "<number>",
+          "experience list": "technoligystring[]"
+        }
+      ],
+      "lagBehindReasons": [
+        {
+          "reason": "<string>",
+          "points": "<number>",
+          "gaps": "<string>"
+        }
+      ]
+    }
+    ```
+	
+make sure the percentage match is constinte every time if user uploads the same resume again 
+
+every record or object has a select and unselect check box after selecting the records and on click of "ADD selected" 
+
+changes in Temporary Data Storage & Debugging
+
+All extracted and matched data will be stored temporarily in the component's state (`extractedCandidates` and `matchResults`). To ensure the final data is ready for submission,
+
+  * **Verify Data Capture:** Before a candidate is "added" (which currently means adding to a temporary data store), the code will use `console.log()` to output the data for each selected candidate.
+  * **Final Check:** This debugging step should allow us to confirm that all required fields from the candidates table are correctly populated from the temporary state, including `id`, `candidate_name`, `email`, `job_id`, `candidate_skills`, `candidate_experience`, `match_percentage`, `status`, `resume_url`, `hr_handling_user_id`, `report_link`, `interview_link`, and `created_at`.
+  
+  and selected candidates data is added to the candidates table with status as "resume_reviewed"
+  
+  and also make sure there is no APi errors or 403 errors
