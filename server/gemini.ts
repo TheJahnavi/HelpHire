@@ -191,6 +191,7 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
           type: "object",
           properties: {
             name: { type: "string" },
+            email: { type: "string" },
             matchPercentage: { type: "number" },
             "percentage match summary": { type: "string" },
             "Strengths:": {

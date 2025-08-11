@@ -229,6 +229,7 @@ export default function Upload() {
         }
 
         return {
+          id: candidate.id,
           name: candidate.name,
           email: candidate.email,
           skills: candidate.skills,

@@ -73,7 +73,7 @@ export const candidates = pgTable("candidates", {
   email: varchar("email", { length: 255 }).notNull(),
   jobId: integer("job_id").references(() => jobs.id),
   candidateSkills: text("candidate_skills").array(),
-  candidateExperience: varchar("candidate_experience", { length: 100 }),
+  candidateExperience: text("candidate_experience"),
   matchPercentage: real("match_percentage"),
   resumeUrl: text("resume_url"),
   hrHandlingUserId: varchar("hr_handling_user_id").references(() => users.id),
