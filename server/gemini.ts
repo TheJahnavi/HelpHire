@@ -155,21 +155,25 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
     ${jobExperience ? `- Experience Required: ${jobExperience}` : ''}
     ${jobNotes ? `- Additional Notes: ${jobNotes}` : ''}
     
-    IMPORTANT: Use exactly ${basePercentage}% as the match percentage for consistency.
+    IMPORTANT CALCULATION RULES:
+    - Use exactly ${basePercentage}% as the match percentage for consistency
+    - Strengths points + |Areas for Improvement points| must equal 100
+    - Match percentage = Strengths points - |Areas for Improvement points|
     
     Provide response in JSON format:
     {
       "name": "${candidate.name}",
+      "email": "${candidate.email}",
       "matchPercentage": ${basePercentage},
       "percentage match summary": "Brief summary explaining the ${basePercentage}% match",
-      "strengthsBehindReasons": [
+      "Strengths:": [
         {
-          "reason": "Description of strength",
+          "reason": "Description of strength with specific skills",
           "points": <positive points earned>,
           "experience list": ["technologies", "or", "skills", "that", "support", "this"]
         }
       ],
-      "lagBehindReasons": [
+      "Areas for Improvement:": [
         {
           "reason": "Description of gap or weakness",
           "points": <negative points deducted>,
@@ -189,19 +193,19 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
             name: { type: "string" },
             matchPercentage: { type: "number" },
             "percentage match summary": { type: "string" },
-            strengthsBehindReasons: {
+            "Strengths:": {
               type: "array",
               items: {
                 type: "object",
                 properties: {
                   reason: { type: "string" },
                   points: { type: "number" },
-                  experienceList: { type: "array", items: { type: "string" } }
+                  "experience list": { type: "array", items: { type: "string" } }
                 },
-                required: ["reason", "points", "experienceList"]
+                required: ["reason", "points", "experience list"]
               }
             },
-            lagBehindReasons: {
+            "Areas for Improvement:": {
               type: "array",
               items: {
                 type: "object",
@@ -214,7 +218,7 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
               }
             }
           },
-          required: ["name", "matchPercentage", "percentage match summary", "strengthsBehindReasons", "lagBehindReasons"]
+          required: ["name", "email", "matchPercentage", "percentage match summary", "Strengths:", "Areas for Improvement:"]
         }
       },
       contents: prompt,
