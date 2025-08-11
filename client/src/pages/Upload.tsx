@@ -228,8 +228,7 @@ export default function Upload() {
     }) => {
       return apiRequest("/api/ai/match-candidates", {
         method: "POST",
-        body: JSON.stringify({ candidates, jobId }),
-        headers: { "Content-Type": "application/json" },
+        body: { candidates, jobId },
       });
     },
     onSuccess: (data) => {
