@@ -212,6 +212,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/companies/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const company = await storage.getCompany(id);
+      if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+      }
+      res.json(company);
+    } catch (error) {
+      console.error("Error fetching company:", error);
+      res.status(500).json({ message: "Failed to fetch company" });
+    }
+  });
+
   // Job routes
   app.get('/api/jobs', isAuthenticated, async (req: any, res) => {
     try {
@@ -233,10 +247,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/jobs', isAuthenticated, async (req: any, res) => {
     try {
       const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
+      
+      if (!user || !user.companyId) {
+        return res.status(404).json({ message: "User or company not found" });
+      }
+
       const jobData = insertJobSchema.parse({
         ...req.body,
         addedByUserId: sessionUser.id,
-        companyId: sessionUser.companyId,
+        companyId: user.companyId,
       });
       
       const job = await storage.createJob(jobData);
@@ -247,6 +267,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating job:", error);
       res.status(500).json({ message: "Failed to create job" });
+    }
+  });
+
+  app.put('/api/jobs/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateData = req.body;
+      
+      const job = await storage.updateJob(id, updateData);
+      res.json(job);
+    } catch (error) {
+      console.error("Error updating job:", error);
+      res.status(500).json({ message: "Failed to update job" });
+    }
+  });
+
+  app.delete('/api/jobs/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      const deleted = await storage.deleteJob(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      
+      res.json({ success: true, message: "Job deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      res.status(500).json({ message: "Failed to delete job" });
     }
   });
 

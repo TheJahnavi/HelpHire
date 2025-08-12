@@ -38,6 +38,8 @@ export interface IStorage {
   getJobsByCompany(companyId: number): Promise<Job[]>;
   getJob(jobId: number): Promise<Job | undefined>;
   createJob(job: InsertJob): Promise<Job>;
+  updateJob(id: number, updates: Partial<Job>): Promise<Job>;
+  deleteJob(id: number): Promise<boolean>;
   
   // Candidate operations
   getCandidatesByCompany(companyId: number): Promise<Candidate[]>;
@@ -120,6 +122,22 @@ export class DatabaseStorage implements IStorage {
       .values(jobData)
       .returning();
     return job;
+  }
+
+  async updateJob(id: number, updates: Partial<Job>): Promise<Job> {
+    const [job] = await db
+      .update(jobs)
+      .set(updates)
+      .where(eq(jobs.id, id))
+      .returning();
+    return job;
+  }
+
+  async deleteJob(id: number): Promise<boolean> {
+    const result = await db
+      .delete(jobs)
+      .where(eq(jobs.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
   // Candidate operations

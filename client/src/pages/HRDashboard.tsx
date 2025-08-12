@@ -133,42 +133,54 @@ export default function HRDashboard() {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="month" />
                       <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="opened" fill="hsl(var(--chart-1))" name="Jobs Opened" />
-                      <Bar dataKey="filled" fill="hsl(var(--chart-2))" name="Jobs Filled" />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--background))", 
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px"
+                        }}
+                      />
+                      <Bar dataKey="opened" fill="hsl(220, 70%, 50%)" name="Jobs Opened" />
+                      <Bar dataKey="filled" fill="hsl(142, 76%, 36%)" name="Jobs Filled" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
 
-              {/* Funnel Chart: Hiring Pipeline */}
+              {/* Bar Chart: Candidate Status Distribution */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Hiring Pipeline</CardTitle>
-                  <CardDescription>Candidates at each stage of the hiring process</CardDescription>
+                  <CardTitle>Candidate Status Distribution</CardTitle>
+                  <CardDescription>Candidates at each status in the hiring process</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={pipelineData} layout="horizontal">
-                      <CartesianGrid strokeDasharray="3 3" />
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis type="number" />
-                      <YAxis dataKey="stage" type="category" width={80} />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="hsl(var(--chart-3))" />
+                      <YAxis dataKey="stage" type="category" width={120} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--background))", 
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px"
+                        }}
+                      />
+                      <Bar dataKey="count" fill="hsl(var(--primary))" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Pie Chart: Candidate Status Distribution */}
+            {/* Pie Chart: Candidate Status Breakdown */}
             <Card>
               <CardHeader>
-                <CardTitle>Candidate Status Distribution</CardTitle>
-                <CardDescription>Breakdown of candidates by status</CardDescription>
+                <CardTitle>Candidate Status Breakdown</CardTitle>
+                <CardDescription>Visual breakdown of all candidates by status</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -182,14 +194,29 @@ export default function HRDashboard() {
                       dataKey="count"
                       label={({ status, count }) => `${status}: ${count}`}
                     >
-                      {candidateStats.map((entry: any, index: number) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={`hsl(var(--chart-${(index % 5) + 1}))`} 
-                        />
-                      ))}
+                      {candidateStats.map((entry: any, index: number) => {
+                        const colors = [
+                          "hsl(220, 70%, 50%)", // Blue for Resume Reviewed
+                          "hsl(32, 95%, 44%)",  // Orange for Interview Scheduled  
+                          "hsl(271, 81%, 56%)", // Purple for Report Generated
+                          "hsl(142, 76%, 36%)", // Green for Hired
+                          "hsl(0, 84%, 60%)"    // Red for Not Selected
+                        ];
+                        return (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={colors[index % colors.length]} 
+                          />
+                        );
+                      })}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "hsl(var(--background))", 
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "6px"
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>

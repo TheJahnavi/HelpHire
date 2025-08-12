@@ -80,6 +80,7 @@ export const candidates = pgTable("candidates", {
   status: varchar("status", { length: 50 }).default('applied'),
   reportLink: text("report_link"),
   interviewLink: text("interview_link"),
+  technicalPersonEmail: varchar("technical_person_email"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

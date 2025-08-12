@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Eye, UserCheck, UserX, Upload, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, UserCheck, UserX, Upload, Edit, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddCandidateModal from "@/components/AddCandidateModal";
 
@@ -73,8 +73,8 @@ export default function Candidates() {
   });
 
   const updateCandidateMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      await apiRequest("PUT", `/api/candidates/${id}`, { status });
+    mutationFn: async ({ id, status, interviewLink, technicalPersonEmail }: { id: number; status: string; interviewLink?: string; technicalPersonEmail?: string }) => {
+      await apiRequest("PUT", `/api/candidates/${id}`, { status, interviewLink, technicalPersonEmail });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
@@ -107,10 +107,7 @@ export default function Candidates() {
     updateCandidateMutation.mutate({ id: candidateId, status: newStatus });
   };
 
-  const handleViewCandidate = (candidate: any) => {
-    // TODO: Implement candidate detail view
-    console.log("View candidate:", candidate);
-  };
+
 
   const handleCloseModal = () => {
     setShowAddModal(false);
@@ -366,14 +363,6 @@ export default function Candidates() {
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewCandidate(candidate)}
-                              data-testid={`view-candidate-${candidate.id}`}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
