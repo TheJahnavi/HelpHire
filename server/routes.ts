@@ -300,6 +300,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/candidates/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      const deleted = await storage.deleteCandidate(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Candidate not found" });
+      }
+      
+      res.json({ success: true, message: "Candidate deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting candidate:", error);
+      res.status(500).json({ message: "Failed to delete candidate" });
+    }
+  });
+
   // File upload for candidates
   app.post('/api/candidates/upload', isAuthenticated, upload.single('resume'), async (req: any, res) => {
     try {

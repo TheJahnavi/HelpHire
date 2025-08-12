@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Users, Briefcase, Clock, CheckSquare } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { Link } from "wouter";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -75,44 +76,50 @@ export default function HRDashboard() {
               </div>
             </div>
 
-            {/* Quick Stats Cards */}
+            {/* Quick Stats Cards - Clickable */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
-                  <Briefcase className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats?.jobStats?.total || 0}</div>
-                  <p className="text-xs text-muted-foreground">Active: {stats?.jobStats?.active || 0}</p>
-                </CardContent>
-              </Card>
+              <Link href="/hr/jobs" data-testid="total-jobs-card">
+                <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats?.jobStats?.total || 0}</div>
+                    <p className="text-xs text-muted-foreground">Active: {stats?.jobStats?.active || 0}</p>
+                  </CardContent>
+                </Card>
+              </Link>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Candidates</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {candidateStats.reduce((sum, stat) => sum + Number(stat.count), 0)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">In pipeline</p>
-                </CardContent>
-              </Card>
+              <Link href="/hr/candidates" data-testid="total-candidates-card">
+                <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Candidates</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {candidateStats.reduce((sum, stat) => sum + Number(stat.count), 0)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">In pipeline</p>
+                  </CardContent>
+                </Card>
+              </Link>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {todos.filter((todo: any) => !todo.isCompleted).length}
-                  </div>
-                  <p className="text-xs text-muted-foreground">To do items</p>
-                </CardContent>
-              </Card>
+              <Link href="/hr/notifications" data-testid="pending-tasks-card">
+                <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {todos.filter((todo: any) => !todo.isCompleted).length}
+                    </div>
+                    <p className="text-xs text-muted-foreground">To do items</p>
+                  </CardContent>
+                </Card>
+              </Link>
             </div>
 
             {/* Charts Section */}
@@ -130,8 +137,8 @@ export default function HRDashboard() {
                       <XAxis dataKey="month" />
                       <YAxis />
                       <Tooltip />
-                      <Bar dataKey="opened" fill="hsl(var(--primary))" name="Jobs Opened" />
-                      <Bar dataKey="filled" fill="hsl(var(--secondary))" name="Jobs Filled" />
+                      <Bar dataKey="opened" fill="hsl(var(--chart-1))" name="Jobs Opened" />
+                      <Bar dataKey="filled" fill="hsl(var(--chart-2))" name="Jobs Filled" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -150,28 +157,40 @@ export default function HRDashboard() {
                       <XAxis type="number" />
                       <YAxis dataKey="stage" type="category" width={80} />
                       <Tooltip />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" />
+                      <Bar dataKey="count" fill="hsl(var(--chart-3))" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Bar Chart: Candidate Status */}
+            {/* Pie Chart: Candidate Status Distribution */}
             <Card>
               <CardHeader>
                 <CardTitle>Candidate Status Distribution</CardTitle>
-                <CardDescription>Number of candidates in each status</CardDescription>
+                <CardDescription>Breakdown of candidates by status</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={candidateStats}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="status" />
-                    <YAxis />
+                  <PieChart>
+                    <Pie
+                      data={candidateStats}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="count"
+                      label={({ status, count }) => `${status}: ${count}`}
+                    >
+                      {candidateStats.map((entry: any, index: number) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={`hsl(var(--chart-${(index % 5) + 1}))`} 
+                        />
+                      ))}
+                    </Pie>
                     <Tooltip />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" />
-                  </BarChart>
+                  </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>

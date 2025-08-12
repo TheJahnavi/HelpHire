@@ -1,0 +1,51 @@
+
+### **Replit Command for UI/UX Improvements**
+
+**UI & UX Improvements**:
+
+   * Make the web application **seamless**, following **modern UI/UX principles**.
+   * Ensure **mobile responsiveness** and a **smooth user flow**.
+   * Implement a **seamless dark mode conversion** with a smooth transition.
+changes and modifications 
+ **Landing Page**:
+
+   * Follow the attached **design inspiration** for styling.
+   * Update CTA buttons (e.g., "Let's Get Started", "Start with Free Trial", "Get Started Today") to redirect to the **signup page** or a **Get Started page**.
+
+**HR Dashboard**:
+
+   * Make the **Total Jobs** card clickable—redirect to the **Jobs page**.
+   * Make the **Total Candidates** card clickable—redirect to the **Candidates page**.
+   * Make the **Pending Tasks** card clickable—redirect to the **Notifications page**.
+   * **Review and adjust** the colors of graphs to make them **more professional** and aligned with **UI/UX guidelines**.
+
+     * **Candidate Status Distribution**: Change to a **pie chart**.
+     * **Jobs Opened vs Filled**: Use a graph to show job openings vs. jobs filled.
+     * **Hiring Pipeline**: Graph showing jobs handled by HR vs. the number of hires made by that HR.
+
+**Jobs Page**:
+
+   * **Remove** the **Departments filter** to simplify the page.
+
+**Candidates Page**:
+
+   * Update **“Add Candidate”** to redirect to the **Upload and Add** page.
+   * **Remove** the **Import** button.
+   * Update **status list** to: **Resume Reviewed**, **Interview Scheduled**, **Report Generated**, **Hired**, **Not Selected**.
+   * In the **Actions column**:
+
+     * **Edit**: Open a popup with prefilled details. If changing status from **Resume Reviewed** to **Interview Scheduled**, add input fields for:
+
+       * **Interview link** (mandatory).
+       * **Technical person email** (optional).
+     * If changing status from **Interview Scheduled** to **Hired** or **Not Selected**, no additional fields should appear.
+     * **Delete**: Popup to confirm or cancel deletion. If confirmed, delete the record; otherwise, close the popup.
+
+**Profile Page**:
+
+   * Under **Role & Permissions**, add the **company name** based on the **logged-in company**.
+
+**General Maintenance**:
+
+   * Go through all pages and **fix any errors** or inconsistencies.
+   * **Optimize** for **performance** and ensure the UI is **error-free**.

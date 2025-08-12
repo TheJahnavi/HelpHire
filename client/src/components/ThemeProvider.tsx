@@ -33,6 +33,9 @@ export function ThemeProvider({
   useEffect(() => {
     const root = window.document.documentElement;
 
+    // Add smooth transition for theme changes
+    root.style.transition = "color 0.3s ease, background-color 0.3s ease";
+
     root.classList.remove("light", "dark");
 
     if (theme === "system") {
@@ -46,6 +49,13 @@ export function ThemeProvider({
     }
 
     root.classList.add(theme);
+
+    // Clean up transition after theme change
+    const timer = setTimeout(() => {
+      root.style.transition = "";
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [theme]);
 
   const value = {

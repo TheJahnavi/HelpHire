@@ -43,6 +43,7 @@ export interface IStorage {
   getCandidatesByCompany(companyId: number): Promise<Candidate[]>;
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
   updateCandidate(id: number, updates: Partial<Candidate>): Promise<Candidate>;
+  deleteCandidate(id: number): Promise<boolean>;
   
   // Todo operations
   getTodosByUser(userId: string): Promise<Todo[]>;
@@ -161,6 +162,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(candidates.id, id))
       .returning();
     return candidate;
+  }
+
+  async deleteCandidate(id: number): Promise<boolean> {
+    const result = await db
+      .delete(candidates)
+      .where(eq(candidates.id, id));
+    return result.rowCount > 0;
   }
 
   // Todo operations

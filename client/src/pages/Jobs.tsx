@@ -32,7 +32,7 @@ export default function Jobs() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
 
@@ -58,7 +58,7 @@ export default function Jobs() {
 
   const deleteJobMutation = useMutation({
     mutationFn: async (jobId: number) => {
-      await apiRequest("DELETE", `/api/jobs/${jobId}`);
+      await apiRequest(`/api/jobs/${jobId}`, { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
@@ -120,9 +120,8 @@ export default function Jobs() {
     const matchesSearch = job.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          job.jobDescription?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || job.jobStatus === statusFilter;
-    const matchesDepartment = departmentFilter === "all" || true; // Add department logic if needed
     
-    return matchesSearch && matchesStatus && matchesDepartment;
+    return matchesSearch && matchesStatus;
   }) || [];
 
   if (isLoading || !isAuthenticated) {
@@ -172,17 +171,6 @@ export default function Jobs() {
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="closed">Closed</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                  <SelectTrigger className="w-[160px]" data-testid="department-filter">
-                    <SelectValue placeholder="All Departments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    <SelectItem value="engineering">Engineering</SelectItem>
-                    <SelectItem value="design">Design</SelectItem>
-                    <SelectItem value="marketing">Marketing</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

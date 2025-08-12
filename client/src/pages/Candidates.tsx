@@ -25,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Eye, UserCheck, UserX, Upload, Edit } from "lucide-react";
+import { Plus, Search, Eye, UserCheck, UserX, Upload, Edit, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddCandidateModal from "@/components/AddCandidateModal";
 
 export default function Candidates() {
@@ -37,6 +38,14 @@ export default function Candidates() {
   const [positionFilter, setPositionFilter] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({
+    status: "",
+    interviewLink: "",
+    technicalPersonEmail: ""
+  });
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -108,18 +117,85 @@ export default function Candidates() {
     setEditingCandidate(null);
   };
 
+  const handleEditCandidate = (candidate: any) => {
+    setSelectedCandidate(candidate);
+    setEditFormData({
+      status: candidate.status || "",
+      interviewLink: "",
+      technicalPersonEmail: ""
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteCandidate = (candidate: any) => {
+    setSelectedCandidate(candidate);
+    setShowDeleteDialog(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (selectedCandidate) {
+      updateCandidateMutation.mutate({ 
+        id: selectedCandidate.id, 
+        status: editFormData.status,
+        interviewLink: editFormData.interviewLink,
+        technicalPersonEmail: editFormData.technicalPersonEmail
+      });
+      setShowEditDialog(false);
+      setSelectedCandidate(null);
+    }
+  };
+
+  const deleteCandidateMutation = useMutation({
+    mutationFn: async (candidateId: number) => {
+      await apiRequest(`/api/candidates/${candidateId}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
+      setShowDeleteDialog(false);
+      setSelectedCandidate(null);
+      toast({
+        title: "Success",
+        description: "Candidate deleted successfully",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to delete candidate",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleConfirmDelete = () => {
+    if (selectedCandidate) {
+      deleteCandidateMutation.mutate(selectedCandidate.id);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'applied':
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Applied</Badge>;
       case 'resume_reviewed':
         return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">Resume Reviewed</Badge>;
       case 'interview_scheduled':
         return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Interview Scheduled</Badge>;
+      case 'report_generated':
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Report Generated</Badge>;
       case 'hired':
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Hired</Badge>;
-      case 'rejected':
-        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Rejected</Badge>;
+      case 'not_selected':
+        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Not Selected</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -155,13 +231,11 @@ export default function Candidates() {
             <p className="text-muted-foreground mt-1">Manage and review candidate applications</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm">
-              <Upload className="mr-2 h-4 w-4" />
-              Import
-            </Button>
-            <Button onClick={() => setShowAddModal(true)} data-testid="add-candidate-button">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Candidate
+            <Button asChild data-testid="upload-add-button">
+              <a href="/hr/upload">
+                <Plus className="mr-2 h-4 w-4" />
+                Upload and Add
+              </a>
             </Button>
           </div>
         </div>
@@ -191,11 +265,11 @@ export default function Candidates() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="applied">Applied</SelectItem>
                     <SelectItem value="resume_reviewed">Resume Reviewed</SelectItem>
                     <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+                    <SelectItem value="report_generated">Report Generated</SelectItem>
                     <SelectItem value="hired">Hired</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="not_selected">Not Selected</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={positionFilter} onValueChange={setPositionFilter}>
@@ -300,28 +374,24 @@ export default function Candidates() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {candidate.status !== 'hired' && candidate.status !== 'rejected' && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleStatusUpdate(candidate.id, 'interview_scheduled')}
-                                  className="text-green-600 hover:text-green-700"
-                                  data-testid={`interview-candidate-${candidate.id}`}
-                                >
-                                  <UserCheck className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleStatusUpdate(candidate.id, 'rejected')}
-                                  className="text-red-600 hover:text-red-700"
-                                  data-testid={`reject-candidate-${candidate.id}`}
-                                >
-                                  <UserX className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditCandidate(candidate)}
+                              className="text-blue-600 hover:text-blue-700"
+                              data-testid={`edit-candidate-${candidate.id}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteCandidate(candidate)}
+                              className="text-red-600 hover:text-red-700"
+                              data-testid={`delete-candidate-${candidate.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -364,6 +434,93 @@ export default function Candidates() {
             onClose={handleCloseModal}
           />
         )}
+
+        {/* Edit Candidate Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Candidate</DialogTitle>
+              <DialogDescription>
+                Update candidate status and information for {selectedCandidate?.candidateName}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <Select value={editFormData.status} onValueChange={(value) => setEditFormData(prev => ({...prev, status: value}))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="resume_reviewed">Resume Reviewed</SelectItem>
+                    <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+                    <SelectItem value="report_generated">Report Generated</SelectItem>
+                    <SelectItem value="hired">Hired</SelectItem>
+                    <SelectItem value="not_selected">Not Selected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {editFormData.status === 'interview_scheduled' && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">Interview Link *</label>
+                    <Input
+                      value={editFormData.interviewLink}
+                      onChange={(e) => setEditFormData(prev => ({...prev, interviewLink: e.target.value}))}
+                      placeholder="https://zoom.us/j/..."
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Technical Person Email</label>
+                    <Input
+                      value={editFormData.technicalPersonEmail}
+                      onChange={(e) => setEditFormData(prev => ({...prev, technicalPersonEmail: e.target.value}))}
+                      placeholder="tech@company.com"
+                      type="email"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={updateCandidateMutation.isPending}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Candidate Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Candidate</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete {selectedCandidate?.candidateName}? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleConfirmDelete}
+                disabled={deleteCandidateMutation.isPending}
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
