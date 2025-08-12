@@ -39,7 +39,7 @@ export interface IStorage {
   getJob(jobId: number): Promise<Job | undefined>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: number, updates: Partial<Job>): Promise<Job>;
-  deleteJob(id: number): Promise<boolean>;
+  deleteJob(id: number): Promise<{ success: boolean; message?: string }>;
   
   // Candidate operations
   getCandidatesByCompany(companyId: number): Promise<Candidate[]>;
@@ -133,11 +133,36 @@ export class DatabaseStorage implements IStorage {
     return job;
   }
 
-  async deleteJob(id: number): Promise<boolean> {
-    const result = await db
-      .delete(jobs)
-      .where(eq(jobs.id, id));
-    return (result.rowCount || 0) > 0;
+  async deleteJob(id: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      // First check if there are any candidates associated with this job
+      const associatedCandidates = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(candidates)
+        .where(eq(candidates.jobId, id));
+      
+      const candidateCount = associatedCandidates[0]?.count || 0;
+      
+      if (candidateCount > 0) {
+        return { 
+          success: false, 
+          message: `Cannot delete job. It has ${candidateCount} associated candidate${candidateCount > 1 ? 's' : ''}. Please remove or reassign the candidates first.` 
+        };
+      }
+
+      // If no candidates are associated, proceed with deletion
+      const result = await db
+        .delete(jobs)
+        .where(eq(jobs.id, id));
+      
+      return { 
+        success: (result.rowCount || 0) > 0,
+        message: (result.rowCount || 0) > 0 ? "Job deleted successfully" : "Job not found"
+      };
+    } catch (error) {
+      console.error("Error in deleteJob:", error);
+      return { success: false, message: "Failed to delete job due to database error" };
+    }
   }
 
   // Candidate operations
@@ -156,6 +181,7 @@ export class DatabaseStorage implements IStorage {
         status: candidates.status,
         reportLink: candidates.reportLink,
         interviewLink: candidates.interviewLink,
+        technicalPersonEmail: candidates.technicalPersonEmail,
         createdAt: candidates.createdAt,
       })
       .from(candidates)
