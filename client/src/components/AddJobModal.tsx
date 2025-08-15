@@ -51,8 +51,7 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
     mutationFn: async (jobData: any) => {
       return await apiRequest("/api/jobs", { 
         method: "POST", 
-        body: JSON.stringify(jobData),
-        headers: { "Content-Type": "application/json" }
+        body: jobData
       });
     },
     onSuccess: () => {
@@ -87,8 +86,7 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
     mutationFn: async (jobData: any) => {
       return await apiRequest(`/api/jobs/${job.id}`, { 
         method: "PUT", 
-        body: JSON.stringify(jobData),
-        headers: { "Content-Type": "application/json" }
+        body: jobData
       });
     },
     onSuccess: () => {
