@@ -28,6 +28,7 @@ import {
 import { Plus, Search, UserCheck, UserX, Upload, Edit, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddCandidateModal from "@/components/AddCandidateModal";
+import EditCandidateModal from "@/components/EditCandidateModal";
 
 export default function Candidates() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,14 +39,8 @@ export default function Candidates() {
   const [positionFilter, setPositionFilter] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState(null);
-  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
-  const [editFormData, setEditFormData] = useState({
-    status: "",
-    interviewLink: "",
-    technicalPersonEmail: ""
-  });
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -115,13 +110,7 @@ export default function Candidates() {
   };
 
   const handleEditCandidate = (candidate: any) => {
-    setSelectedCandidate(candidate);
-    setEditFormData({
-      status: candidate.status || "",
-      interviewLink: "",
-      technicalPersonEmail: ""
-    });
-    setShowEditDialog(true);
+    setEditingCandidate(candidate);
   };
 
   const handleDeleteCandidate = (candidate: any) => {
@@ -129,18 +118,7 @@ export default function Candidates() {
     setShowDeleteDialog(true);
   };
 
-  const handleSaveEdit = () => {
-    if (selectedCandidate) {
-      updateCandidateMutation.mutate({ 
-        id: selectedCandidate.id, 
-        status: editFormData.status,
-        interviewLink: editFormData.interviewLink,
-        technicalPersonEmail: editFormData.technicalPersonEmail
-      });
-      setShowEditDialog(false);
-      setSelectedCandidate(null);
-    }
-  };
+
 
   const deleteCandidateMutation = useMutation({
     mutationFn: async (candidateId: number) => {
@@ -424,67 +402,13 @@ export default function Candidates() {
           />
         )}
 
-        {/* Edit Candidate Dialog */}
-        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Candidate</DialogTitle>
-              <DialogDescription>
-                Update candidate status and information for {selectedCandidate?.candidateName}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Status</label>
-                <Select value={editFormData.status} onValueChange={(value) => setEditFormData(prev => ({...prev, status: value}))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="resume_reviewed">Resume Reviewed</SelectItem>
-                    <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
-                    <SelectItem value="report_generated">Report Generated</SelectItem>
-                    <SelectItem value="hired">Hired</SelectItem>
-                    <SelectItem value="not_selected">Not Selected</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {editFormData.status === 'interview_scheduled' && (
-                <>
-                  <div>
-                    <label className="text-sm font-medium">Interview Link *</label>
-                    <Input
-                      value={editFormData.interviewLink}
-                      onChange={(e) => setEditFormData(prev => ({...prev, interviewLink: e.target.value}))}
-                      placeholder="https://zoom.us/j/..."
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Technical Person Email</label>
-                    <Input
-                      value={editFormData.technicalPersonEmail}
-                      onChange={(e) => setEditFormData(prev => ({...prev, technicalPersonEmail: e.target.value}))}
-                      placeholder="tech@company.com"
-                      type="email"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-            
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveEdit} disabled={updateCandidateMutation.isPending}>
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Edit Candidate Modal */}
+        {editingCandidate && (
+          <EditCandidateModal
+            candidate={editingCandidate}
+            onClose={() => setEditingCandidate(null)}
+          />
+        )}
 
         {/* Delete Candidate Dialog */}
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
