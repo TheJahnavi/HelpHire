@@ -185,12 +185,14 @@ export default function EditCandidateModal({ candidate, onClose }: EditCandidate
     if (typeof experience === 'string') {
       try {
         const parsed = JSON.parse(experience);
-        return `${parsed.years || 0} years`;
+        return parsed.years || 0;
       } catch {
-        return experience;
+        // If it's already a simple string like "5 years", extract the number
+        const match = experience.match(/(\d+)/);
+        return match ? match[1] : experience;
       }
     }
-    return experience?.years ? `${experience.years} years` : "0 years";
+    return experience?.years || experience || 0;
   };
 
   return (
@@ -249,7 +251,7 @@ export default function EditCandidateModal({ candidate, onClose }: EditCandidate
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="experience">Candidates Experience *</Label>
+              <Label htmlFor="experience">Experience *</Label>
               <Input
                 id="experience"
                 placeholder="e.g., 5 years"
@@ -287,21 +289,7 @@ export default function EditCandidateModal({ candidate, onClose }: EditCandidate
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={formData.status} disabled>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={formData.status}>
-                    {formData.status.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="matchPercentage">Match Percentage</Label>
               <Input
@@ -346,17 +334,32 @@ export default function EditCandidateModal({ candidate, onClose }: EditCandidate
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="interviewLink">Interview Link</Label>
-                <Input
-                  id="interviewLink"
-                  placeholder="https://meet.google.com/..."
-                  value={formData.interviewLink}
-                  onChange={(e) => handleInputChange("interviewLink", e.target.value)}
-                  data-testid="input-interview-link"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="interviewLink"
+                    placeholder="https://meet.google.com/..."
+                    value={formData.interviewLink}
+                    onChange={(e) => handleInputChange("interviewLink", e.target.value)}
+                    data-testid="input-interview-link"
+                    className="flex-1"
+                  />
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      // Generate a meeting link or open scheduling interface
+                      const meetingLink = `https://meet.google.com/${Math.random().toString(36).substr(2, 9)}`;
+                      handleInputChange("interviewLink", meetingLink);
+                    }}
+                    data-testid="button-schedule"
+                  >
+                    Schedule
+                  </Button>
+                </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="technicalPersonEmail">Technical Person Email</Label>
+                <Label htmlFor="technicalPersonEmail">Technical Person Mail</Label>
                 <Input
                   id="technicalPersonEmail"
                   type="email"
