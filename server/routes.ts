@@ -265,6 +265,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Parsed job data:", jobData);
       
       const job = await storage.createJob(jobData);
+
+      // Create notification for all company users about new job
+      await storage.createNotificationForCompany(
+        user.companyId,
+        `New job "${job.jobTitle}" has been posted by ${user.firstName || user.name}`
+      );
+
       res.json(job);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -282,6 +289,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = req.body;
       
       const job = await storage.updateJob(id, updateData);
+
+      // Get user and create notification for all company users about job update
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
+      
+      if (user && user.companyId) {
+        await storage.createNotificationForCompany(
+          user.companyId,
+          `Job "${job.jobTitle}" has been updated by ${user.firstName || user.name}`
+        );
+      }
+
       res.json(job);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -352,6 +371,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateData = req.body;
       
       const candidate = await storage.updateCandidate(id, updateData);
+
+      // Create notification for status changes
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
+      
+      if (user && user.companyId && updateData.status) {
+        const statusMessages: Record<string, string> = {
+          'resume_reviewed': 'reviewed',
+          'interview_scheduled': 'scheduled for interview',
+          'report_generated': 'report generated',
+          'hired': 'hired',
+          'not_selected': 'not selected'
+        };
+        
+        const statusMessage = statusMessages[updateData.status] || 'updated';
+        await storage.createNotificationForCompany(
+          user.companyId,
+          `Candidate ${candidate.candidateName} has been ${statusMessage} by ${user.firstName || user.name}`
+        );
+      }
+
       res.json(candidate);
     } catch (error) {
       console.error("Error updating candidate:", error);
@@ -694,6 +734,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`\n=== FINAL RESULT: Added ${addedCandidates.length}/${candidates.length} candidates ===`);
+
+      // Create notification for all company users about new candidates
+      if (addedCandidates.length > 0) {
+        // Get company ID from the job
+        const job = await storage.getJob(parseInt(jobId));
+        if (job && job.companyId) {
+          const candidateNames = addedCandidates.map(c => c.candidateName).join(', ');
+          await storage.createNotificationForCompany(
+            job.companyId,
+            `${addedCandidates.length} new candidate${addedCandidates.length > 1 ? 's' : ''} added: ${candidateNames}`
+          );
+        }
+      }
 
       res.json({ 
         message: `Successfully added ${addedCandidates.length} candidates to database`,

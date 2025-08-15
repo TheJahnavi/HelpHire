@@ -54,7 +54,10 @@ export interface IStorage {
   
   // Notification operations
   getNotificationsByUser(userId: string): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  createNotificationForCompany(companyId: number, message: string): Promise<void>;
   markNotificationAsRead(id: number): Promise<Notification>;
+  getUsersByCompany(companyId: number): Promise<User[]>;
   
   // Dashboard stats
   getJobStats(companyId: number): Promise<any>;
@@ -240,6 +243,32 @@ export class DatabaseStorage implements IStorage {
   // Notification operations
   async getNotificationsByUser(userId: string): Promise<Notification[]> {
     return await db.select().from(notifications).where(eq(notifications.userId, userId));
+  }
+
+  async createNotification(notificationData: InsertNotification): Promise<Notification> {
+    const [notification] = await db
+      .insert(notifications)
+      .values(notificationData)
+      .returning();
+    return notification;
+  }
+
+  async createNotificationForCompany(companyId: number, message: string): Promise<void> {
+    // Get all users in the company
+    const companyUsers = await this.getUsersByCompany(companyId);
+    
+    // Create notification for each user
+    for (const user of companyUsers) {
+      await this.createNotification({
+        userId: user.id,
+        message: message,
+        readStatus: false
+      });
+    }
+  }
+
+  async getUsersByCompany(companyId: number): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.companyId, companyId));
   }
 
   async markNotificationAsRead(id: number): Promise<Notification> {
