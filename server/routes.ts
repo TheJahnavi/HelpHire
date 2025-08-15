@@ -253,16 +253,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User or company not found" });
       }
 
+      console.log("Request body:", req.body);
+      console.log("User details:", { userId: sessionUser.id, companyId: user.companyId });
+      
       const jobData = insertJobSchema.parse({
         ...req.body,
         addedByUserId: sessionUser.id,
         companyId: user.companyId,
       });
       
+      console.log("Parsed job data:", jobData);
+      
       const job = await storage.createJob(jobData);
       res.json(job);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error("Job creation validation error:", error.errors);
         return res.status(400).json({ message: "Invalid input", errors: error.errors });
       }
       console.error("Error creating job:", error);
@@ -278,6 +284,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const job = await storage.updateJob(id, updateData);
       res.json(job);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error("Job update validation error:", error.errors);
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
       console.error("Error updating job:", error);
       res.status(500).json({ message: "Failed to update job" });
     }
