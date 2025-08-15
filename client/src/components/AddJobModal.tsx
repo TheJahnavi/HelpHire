@@ -49,8 +49,11 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
 
   const createJobMutation = useMutation({
     mutationFn: async (jobData: any) => {
-      const response = await apiRequest("POST", "/api/jobs", jobData);
-      return response.json();
+      return await apiRequest("/api/jobs", { 
+        method: "POST", 
+        body: JSON.stringify(jobData),
+        headers: { "Content-Type": "application/json" }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
@@ -82,8 +85,11 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
 
   const updateJobMutation = useMutation({
     mutationFn: async (jobData: any) => {
-      const response = await apiRequest("PUT", `/api/jobs/${job.id}`, jobData);
-      return response.json();
+      return await apiRequest(`/api/jobs/${job.id}`, { 
+        method: "PUT", 
+        body: JSON.stringify(jobData),
+        headers: { "Content-Type": "application/json" }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
@@ -130,7 +136,7 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
   const removeSkill = (skillToRemove: string) => {
     setFormData(prev => ({
       ...prev,
-      skills: prev.skills.filter(skill => skill !== skillToRemove)
+      skills: prev.skills.filter((skill: string) => skill !== skillToRemove)
     }));
   };
 
