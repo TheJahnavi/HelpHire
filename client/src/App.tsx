@@ -24,6 +24,7 @@ function Router() {
     <Switch>
       {/* Public routes */}
       <Route path="/login" component={Login} />
+      <Route path="/signin" component={Login} />
       <Route path="/signup" component={Signup} />
       
       {isLoading || !isAuthenticated ? (

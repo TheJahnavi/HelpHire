@@ -1,9 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Brain, Users, BarChart3, FileText, MessageSquare, TrendingUp } from "lucide-react";
+import { Check, Brain, Users, BarChart3, FileText, MessageSquare, TrendingUp, Moon, Sun } from "lucide-react";
+import { useTheme } from "@/components/ThemeProvider";
 
 export default function Landing() {
+  const { theme, setTheme } = useTheme();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -17,9 +20,18 @@ export default function Landing() {
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
               <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
-              <a href="#contact" className="text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+                data-testid="theme-toggle-button"
+              >
+                <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                <span className="sr-only">Toggle theme</span>
+              </Button>
               <Button asChild data-testid="nav-login-button">
-                <a href="/api/login">Sign In</a>
+                <a href="/signin">Login</a>
               </Button>
             </div>
           </div>
@@ -40,10 +52,10 @@ export default function Landing() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white" asChild data-testid="get-started-button">
-                  <a href="/api/login">Get Started</a>
+                  <a href="/signin">Get Started</a>
                 </Button>
                 <Button variant="outline" size="lg" asChild data-testid="free-trial-button">
-                  <a href="/api/login">Try for Free</a>
+                  <a href="/signin">Try for Free</a>
                 </Button>
               </div>
             </div>
@@ -95,7 +107,7 @@ export default function Landing() {
                 Advanced algorithms analyze resumes and match candidates with job requirements, providing detailed compatibility scores and skill assessments for better hiring decisions.
               </p>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white" asChild>
-                <a href="/api/login">Learn More</a>
+                <a href="/signin">Learn More</a>
               </Button>
               <div className="mt-6 relative">
                 <div className="aspect-video bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/20 dark:to-blue-800/10 rounded-lg flex items-center justify-center">
@@ -126,7 +138,7 @@ export default function Landing() {
                 Generate tailored interview questions automatically based on candidate resumes and job requirements. Conduct intelligent interviews that adapt to each candidate's background and experience.
               </p>
               <Button className="bg-green-600 hover:bg-green-700 text-white" asChild>
-                <a href="/api/login">Learn More</a>
+                <a href="/signin">Learn More</a>
               </Button>
               <div className="mt-6 relative">
                 <div className="aspect-video bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/20 dark:to-green-800/10 rounded-lg flex items-center justify-center">
@@ -155,7 +167,7 @@ export default function Landing() {
                 Get comprehensive insights comparing resume qualifications with interview performance. Make data-driven hiring decisions with detailed analytics and candidate assessments.
               </p>
               <Button className="bg-purple-600 hover:bg-purple-700 text-white" asChild>
-                <a href="/api/login">Learn More</a>
+                <a href="/signin">Learn More</a>
               </Button>
               <div className="mt-6 relative">
                 <div className="aspect-video bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/20 dark:to-purple-800/10 rounded-lg flex items-center justify-center">
@@ -172,7 +184,7 @@ export default function Landing() {
               Transform your recruitment process with AI-powered tools that deliver results.
             </p>
             <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100" asChild>
-              <a href="/api/login">Get Started Now</a>
+              <a href="/signin">Get Started Now</a>
             </Button>
           </div>
         </div>
