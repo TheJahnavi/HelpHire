@@ -69,12 +69,24 @@ export async function setupVite(app: Express, server: Server) {
 
 export function serveStatic(app: Express) {
   // Updated to look for the correct dist directory structure
-  const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
+  // For Vercel, we need to check multiple possible paths
+  const possiblePaths = [
+    path.resolve(import.meta.dirname, "..", "dist", "public"),
+    path.resolve(import.meta.dirname, "..", "..", "dist", "public"),
+    path.resolve(process.cwd(), "dist", "public")
+  ];
 
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
+  let distPath = "";
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      distPath = possiblePath;
+      break;
+    }
+  }
+
+  if (!distPath) {
+    console.warn("Could not find the build directory, serving API only");
+    return;
   }
 
   app.use(express.static(distPath));
