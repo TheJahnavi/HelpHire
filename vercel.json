@@ -7,10 +7,6 @@
       "config": {
         "includeFiles": [
           "dist/**", 
-          "server/gemini.ts", 
-          "shared/**",
-          "server/db.ts",
-          "server/storage.ts",
           "server/vite.ts"
         ]
       }
