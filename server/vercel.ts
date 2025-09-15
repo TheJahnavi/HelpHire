@@ -12,13 +12,13 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Register routes and serve static files
-registerRoutes(app).then(() => {
-  // Serve static files
-  serveStatic(app);
-  
-  log("Vercel server initialized");
-});
+// Register routes (without waiting for the promise to resolve)
+registerRoutes(app);
+
+// Serve static files
+serveStatic(app);
+
+log("Vercel server initialized");
 
 // Export the app for Vercel
 export default app;
