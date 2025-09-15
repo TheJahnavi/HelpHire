@@ -17,14 +17,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Simple API endpoint for testing
-app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'API endpoint is working',
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Serve static files
 serveStatic(app);
 

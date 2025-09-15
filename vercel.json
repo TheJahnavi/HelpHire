@@ -18,25 +18,9 @@
     {
       "src": "server/api-handler.ts",
       "use": "@vercel/node"
-    },
-    {
-      "src": "server/test-function.ts",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "server/api-test.ts",
-      "use": "@vercel/node"
     }
   ],
   "routes": [
-    {
-      "src": "/api/test",
-      "dest": "/server/test-function.ts"
-    },
-    {
-      "src": "/api/db-test",
-      "dest": "/server/api-test.ts"
-    },
     {
       "src": "/api/(.*)",
       "dest": "/server/api-handler.ts"
