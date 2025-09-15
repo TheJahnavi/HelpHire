@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Users, Briefcase, Clock, CheckSquare } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, FunnelChart, Funnel, LabelList } from "recharts";
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +62,11 @@ export default function HRDashboard() {
   const pipelineData = stats?.pipelineData || [];
   const candidateStats = stats?.candidateStats || [];
 
+  // Calculate candidates in process (not hired or not selected)
+  const candidatesInProcess = candidateStats
+    .filter(stat => stat.status !== 'hired' && stat.status !== 'not_selected')
+    .reduce((sum, stat) => sum + Number(stat.count), 0);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="flex h-screen pt-16">
@@ -76,9 +81,26 @@ export default function HRDashboard() {
               </div>
             </div>
 
-            {/* Quick Stats Cards - Clickable */}
+            {/* Quick Stats Cards - Clickable with proper redirection and filters */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Link href="/hr/jobs" data-testid="total-jobs-card">
+              {/* Total Candidates Card - Redirects to /hr/candidates with hr_handling_user_id filter */}
+              <Link href={`/hr/candidates?hr=${user?.id}`} data-testid="total-candidates-card">
+                <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Candidates</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {candidateStats.reduce((sum, stat) => sum + Number(stat.count), 0)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">All candidates</p>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              {/* Total Job Positions Card - Redirects to /hr/jobs with hr_handling_user_id filter */}
+              <Link href={`/hr/jobs?hr=${user?.id}`} data-testid="total-jobs-card">
                 <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
@@ -91,32 +113,16 @@ export default function HRDashboard() {
                 </Card>
               </Link>
 
-              <Link href="/hr/candidates" data-testid="total-candidates-card">
+              {/* Candidates in Process Card - Redirects to /hr/candidates with filters */}
+              <Link href={`/hr/candidates?hr=${user?.id}&status=process`} data-testid="candidates-in-process-card">
                 <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Candidates</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {candidateStats.reduce((sum, stat) => sum + Number(stat.count), 0)}
-                    </div>
-                    <p className="text-xs text-muted-foreground">In pipeline</p>
-                  </CardContent>
-                </Card>
-              </Link>
-
-              <Link href="/hr/notifications" data-testid="pending-tasks-card">
-                <Card className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
+                    <CardTitle className="text-sm font-medium">Candidates in Process</CardTitle>
                     <Clock className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
-                      {todos.filter((todo: any) => !todo.isCompleted).length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">To do items</p>
+                    <div className="text-2xl font-bold">{candidatesInProcess}</div>
+                    <p className="text-xs text-muted-foreground">Not hired or rejected</p>
                   </CardContent>
                 </Card>
               </Link>
@@ -150,18 +156,15 @@ export default function HRDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Bar Chart: Candidate Status Distribution */}
+              {/* Funnel Chart: Hiring Pipeline */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Candidate Status Distribution</CardTitle>
-                  <CardDescription>Candidates at each status in the hiring process</CardDescription>
+                  <CardTitle>Hiring Pipeline</CardTitle>
+                  <CardDescription>Visual representation of candidate progression</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={pipelineData} layout="horizontal">
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis type="number" />
-                      <YAxis dataKey="stage" type="category" width={120} />
+                    <FunnelChart>
                       <Tooltip 
                         contentStyle={{ 
                           backgroundColor: "hsl(var(--background))", 
@@ -169,47 +172,37 @@ export default function HRDashboard() {
                           borderRadius: "6px"
                         }}
                       />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" />
-                    </BarChart>
+                      <Funnel
+                        dataKey="value"
+                        nameKey="name"
+                        data={pipelineData.map(item => ({
+                          value: item.count,
+                          name: item.stage,
+                          fill: getStageColor(item.stage)
+                        }))}
+                        isAnimationActive
+                      >
+                        <LabelList position="right" fill="#000" stroke="none" dataKey="name" />
+                        <LabelList position="left" fill="#000" stroke="none" dataKey="value" />
+                      </Funnel>
+                    </FunnelChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Pie Chart: Candidate Status Breakdown */}
+            {/* Bar Chart: Candidate Status Distribution */}
             <Card>
               <CardHeader>
-                <CardTitle>Candidate Status Breakdown</CardTitle>
-                <CardDescription>Visual breakdown of all candidates by status</CardDescription>
+                <CardTitle>Candidate Status Distribution</CardTitle>
+                <CardDescription>Candidates at each status in the hiring process</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={candidateStats}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="count"
-                      label={({ status, count }) => `${status}: ${count}`}
-                    >
-                      {candidateStats.map((entry: any, index: number) => {
-                        const colors = [
-                          "hsl(220, 70%, 50%)", // Blue for Resume Reviewed
-                          "hsl(32, 95%, 44%)",  // Orange for Interview Scheduled  
-                          "hsl(271, 81%, 56%)", // Purple for Report Generated
-                          "hsl(142, 76%, 36%)", // Green for Hired
-                          "hsl(0, 84%, 60%)"    // Red for Not Selected
-                        ];
-                        return (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={colors[index % colors.length]} 
-                          />
-                        );
-                      })}
-                    </Pie>
+                  <BarChart data={pipelineData} layout="horizontal">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="stage" type="category" width={120} />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: "hsl(var(--background))", 
@@ -217,7 +210,8 @@ export default function HRDashboard() {
                         borderRadius: "6px"
                       }}
                     />
-                  </PieChart>
+                    <Bar dataKey="count" fill="hsl(var(--primary))" />
+                  </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
@@ -282,3 +276,23 @@ export default function HRDashboard() {
     </div>
   );
 }
+
+// Helper function to get colors for different stages
+const getStageColor = (stage: string) => {
+  switch (stage?.toLowerCase()) {
+    case 'applied':
+      return "hsl(220, 70%, 50%)"; // Blue
+    case 'resume_reviewed':
+      return "hsl(32, 95%, 44%)"; // Orange
+    case 'interview_scheduled':
+      return "hsl(271, 81%, 56%)"; // Purple
+    case 'report_generated':
+      return "hsl(142, 76%, 36%)"; // Green
+    case 'hired':
+      return "hsl(142, 76%, 36%)"; // Green
+    case 'not_selected':
+      return "hsl(0, 84%, 60%)"; // Red
+    default:
+      return "hsl(220, 70%, 50%)"; // Blue
+  }
+};

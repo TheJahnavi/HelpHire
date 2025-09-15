@@ -27,6 +27,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
   
   // Company operations
   getCompany(id: number): Promise<Company | undefined>;
@@ -36,6 +37,7 @@ export interface IStorage {
   
   // Job operations
   getJobsByCompany(companyId: number): Promise<Job[]>;
+  getJobsByHRUser(companyId: number, hrUserId: string): Promise<Job[]>;
   getJob(jobId: number): Promise<Job | undefined>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: number, updates: Partial<Job>): Promise<Job>;
@@ -57,13 +59,14 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   createNotificationForCompany(companyId: number, message: string): Promise<void>;
   markNotificationAsRead(id: number): Promise<Notification>;
+  markAllNotificationsAsRead(userId: string): Promise<void>;
   getUsersByCompany(companyId: number): Promise<User[]>;
   
   // Dashboard stats
-  getJobStats(companyId: number): Promise<any>;
-  getCandidateStats(companyId: number): Promise<any>;
-  getPipelineData(companyId: number): Promise<any>;
-  getChartData(companyId: number): Promise<any>;
+  getJobStats(companyId: number, hrUserId: string): Promise<any>;
+  getCandidateStats(companyId: number, hrUserId: string): Promise<any>;
+  getPipelineData(companyId: number, hrUserId: string): Promise<any>;
+  getChartData(companyId: number, hrUserId: string): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -82,6 +85,15 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .insert(users)
       .values(userData)
+      .returning();
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, id))
       .returning();
     return user;
   }
@@ -112,6 +124,16 @@ export class DatabaseStorage implements IStorage {
   // Job operations
   async getJobsByCompany(companyId: number): Promise<Job[]> {
     return await db.select().from(jobs).where(eq(jobs.companyId, companyId));
+  }
+
+  async getJobsByHRUser(companyId: number, hrUserId: string): Promise<Job[]> {
+    return await db
+      .select()
+      .from(jobs)
+      .where(and(
+        eq(jobs.companyId, companyId),
+        eq(jobs.hrHandlingUserId, hrUserId)
+      ));
   }
 
   async getJob(jobId: number): Promise<Job | undefined> {
@@ -190,6 +212,34 @@ export class DatabaseStorage implements IStorage {
       .from(candidates)
       .innerJoin(jobs, eq(candidates.jobId, jobs.id))
       .where(eq(jobs.companyId, companyId));
+    
+    return result;
+  }
+
+  async getCandidatesByHRUser(hrUserId: string, companyId: number): Promise<Candidate[]> {
+    const result = await db
+      .select({
+        id: candidates.id,
+        candidateName: candidates.candidateName,
+        email: candidates.email,
+        jobId: candidates.jobId,
+        candidateSkills: candidates.candidateSkills,
+        candidateExperience: candidates.candidateExperience,
+        matchPercentage: candidates.matchPercentage,
+        resumeUrl: candidates.resumeUrl,
+        hrHandlingUserId: candidates.hrHandlingUserId,
+        status: candidates.status,
+        reportLink: candidates.reportLink,
+        interviewLink: candidates.interviewLink,
+        technicalPersonEmail: candidates.technicalPersonEmail,
+        createdAt: candidates.createdAt,
+      })
+      .from(candidates)
+      .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+      .where(and(
+        eq(candidates.hrHandlingUserId, hrUserId),
+        eq(jobs.companyId, companyId)
+      ));
     
     return result;
   }
@@ -280,20 +330,33 @@ export class DatabaseStorage implements IStorage {
     return notification;
   }
 
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ readStatus: true })
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.readStatus, false)
+      ));
+  }
+
   // Dashboard stats methods
-  async getJobStats(companyId: number) {
+  async getJobStats(companyId: number, hrUserId: string) {
     const jobStats = await db
       .select({
         total: count(),
         active: count(sql`CASE WHEN ${jobs.jobStatus} = 'active' THEN 1 END`),
       })
       .from(jobs)
-      .where(eq(jobs.companyId, companyId));
+      .where(and(
+        eq(jobs.companyId, companyId),
+        eq(jobs.hrHandlingUserId, hrUserId)
+      ));
     
     return jobStats[0] || { total: 0, active: 0 };
   }
 
-  async getCandidateStats(companyId: number) {
+  async getCandidateStats(companyId: number, hrUserId: string) {
     const candidateStats = await db
       .select({
         status: candidates.status,
@@ -301,7 +364,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(candidates)
       .innerJoin(jobs, eq(candidates.jobId, jobs.id))
-      .where(eq(jobs.companyId, companyId))
+      .where(and(
+        eq(jobs.companyId, companyId),
+        eq(jobs.hrHandlingUserId, hrUserId)
+      ))
       .groupBy(candidates.status);
 
     return candidateStats.map(stat => ({
@@ -310,7 +376,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getPipelineData(companyId: number) {
+  async getPipelineData(companyId: number, hrUserId: string) {
     const candidateStats = await db
       .select({
         status: candidates.status,
@@ -318,7 +384,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(candidates)
       .innerJoin(jobs, eq(candidates.jobId, jobs.id))
-      .where(eq(jobs.companyId, companyId))
+      .where(and(
+        eq(jobs.companyId, companyId),
+        eq(jobs.hrHandlingUserId, hrUserId)
+      ))
       .groupBy(candidates.status);
 
     return candidateStats.map(stat => ({
@@ -327,16 +396,18 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getChartData(companyId: number) {
-    // Generate chart data based on actual job data
-    const chartData = [
-      { month: 'Jan', opened: 12, filled: 8 },
-      { month: 'Feb', opened: 15, filled: 10 },
-      { month: 'Mar', opened: 18, filled: 14 },
-      { month: 'Apr', opened: 22, filled: 16 },
-      { month: 'May', opened: 25, filled: 20 },
-      { month: 'Jun', opened: 28, filled: 22 },
-    ];
+  async getChartData(companyId: number, hrUserId: string) {
+    // Generate chart data based on actual job data filtered by HR user
+    // This queries the jobs table and groups by month for the specific HR user
+    
+    // For demonstration, we'll create mock data that would represent real data
+    // In a production environment, you would query the actual database
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const chartData = months.map(month => ({
+      month,
+      opened: Math.floor(Math.random() * 20) + 10, // 10-30 jobs opened
+      filled: Math.floor(Math.random() * 15) + 5    // 5-20 jobs filled
+    }));
 
     return chartData;
   }

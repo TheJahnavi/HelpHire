@@ -1,6 +1,11 @@
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from 'openai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+// Use OpenRouter for multiple AI agents access
+// Get your free API key from https://openrouter.ai/keys
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'your-openrouter-api-key-here',
+  baseURL: 'https://openrouter.ai/api/v1',
+});
 
 export interface ProjectData {
   name: string;
@@ -37,8 +42,16 @@ export interface JobMatchResult {
   name: string;
   matchPercentage: number;
   "percentage match summary": string;
-  strengthsBehindReasons: StrengthReason[];
-  lagBehindReasons: LagReason[];
+  "Strengths:": {
+    reason: string;
+    points: number;
+    "experience list": string[];
+  }[];
+  "Areas for Improvement:": {
+    reason: string;
+    points: number;
+    gaps: string;
+  }[];
 }
 
 export interface InterviewQuestions {
@@ -84,49 +97,21 @@ export async function extractResumeData(resumeText: string): Promise<ExtractedCa
     Return only valid JSON, no additional text.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            email: { type: "string" },
-            skills: { type: "array", items: { type: "string" } },
-            experience: {
-              type: "object",
-              properties: {
-                years: { type: "number" },
-                projects: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string" },
-                      skills: { type: "array", items: { type: "string" } },
-                      years: { type: "number" }
-                    },
-                    required: ["name", "skills", "years"]
-                  }
-                }
-              },
-              required: ["years", "projects"]
-            },
-            summary: { type: "string" }
-          },
-          required: ["name", "email", "skills", "experience", "summary"]
-        }
-      },
-      contents: prompt,
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 1500,
     });
 
-    const rawJson = response.text;
+    const rawJson = response.choices[0]?.message?.content || "";
     if (!rawJson) {
-      throw new Error("Empty response from Gemini");
+      throw new Error("Empty response from OpenAI");
     }
 
-    return JSON.parse(rawJson);
+    // Clean up the response to ensure it's valid JSON
+    const cleanedResponse = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanedResponse);
   } catch (error) {
     console.error("Error extracting resume data:", error);
     throw new Error(`Failed to extract resume data: ${error}`);
@@ -193,54 +178,21 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
     }
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            email: { type: "string" },
-            matchPercentage: { type: "number" },
-            "percentage match summary": { type: "string" },
-            "Strengths:": {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  reason: { type: "string" },
-                  points: { type: "number" },
-                  "experience list": { type: "array", items: { type: "string" } }
-                },
-                required: ["reason", "points", "experience list"]
-              }
-            },
-            "Areas for Improvement:": {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  reason: { type: "string" },
-                  points: { type: "number" },
-                  gaps: { type: "string" }
-                },
-                required: ["reason", "points", "gaps"]
-              }
-            }
-          },
-          required: ["name", "email", "matchPercentage", "percentage match summary", "Strengths:", "Areas for Improvement:"]
-        }
-      },
-      contents: prompt,
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 2000,
     });
 
-    const rawJson = response.text;
+    const rawJson = response.choices[0]?.message?.content || "";
     if (!rawJson) {
-      throw new Error("Empty response from Gemini");
+      throw new Error("Empty response from OpenAI");
     }
 
-    return JSON.parse(rawJson);
+    // Clean up the response to ensure it's valid JSON
+    const cleanedResponse = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanedResponse);
   } catch (error) {
     console.error("Error calculating job match:", error);
     throw new Error(`Failed to calculate job match: ${error}`);
@@ -278,29 +230,21 @@ export async function generateInterviewQuestions(
     Return only valid JSON, no additional text.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "object",
-          properties: {
-            technical: { type: "array", items: { type: "string" } },
-            behavioral: { type: "array", items: { type: "string" } },
-            jobSpecific: { type: "array", items: { type: "string" } }
-          },
-          required: ["technical", "behavioral", "jobSpecific"]
-        }
-      },
-      contents: prompt,
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.5,
+      max_tokens: 1500,
     });
 
-    const rawJson = response.text;
+    const rawJson = response.choices[0]?.message?.content || "";
     if (!rawJson) {
-      throw new Error("Empty response from Gemini");
+      throw new Error("Empty response from OpenAI");
     }
 
-    return JSON.parse(rawJson);
+    // Clean up the response to ensure it's valid JSON
+    const cleanedResponse = rawJson.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanedResponse);
   } catch (error) {
     console.error("Error generating interview questions:", error);
     throw new Error(`Failed to generate interview questions: ${error}`);

@@ -29,18 +29,34 @@ import { Plus, Search, UserCheck, UserX, Upload, Edit, Trash2 } from "lucide-rea
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AddCandidateModal from "@/components/AddCandidateModal";
 import EditCandidateModal from "@/components/EditCandidateModal";
+import { useLocation } from "wouter";
 
 export default function Candidates() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [location, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingCandidate, setEditingCandidate] = useState(null);
+  const [editingCandidate, setEditingCandidate] = useState<any>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null);
+
+  // Parse query parameters from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hrParam = urlParams.get('hr');
+    const statusParam = urlParams.get('status');
+    
+    if (statusParam) {
+      setStatusFilter(statusParam);
+    }
+    
+    // Note: We don't need to set hrFilter because the backend already filters by logged-in user
+    // The hr parameter is just for consistency with dashboard redirection
+  }, []);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -67,9 +83,15 @@ export default function Candidates() {
     retry: false,
   });
 
+  // Status update mutation with proper validation
   const updateCandidateMutation = useMutation({
     mutationFn: async ({ id, status, interviewLink, technicalPersonEmail }: { id: number; status: string; interviewLink?: string; technicalPersonEmail?: string }) => {
-      await apiRequest("PUT", `/api/candidates/${id}`, { status, interviewLink, technicalPersonEmail });
+      // Validate required fields based on status
+      if (status === 'interview_scheduled' && (!interviewLink || !technicalPersonEmail)) {
+        throw new Error("Interview link and technical person email are required when scheduling an interview");
+      }
+      
+      return apiRequest(`/api/candidates/${id}`, { method: "PUT", body: { status, interviewLink, technicalPersonEmail } });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
@@ -78,7 +100,7 @@ export default function Candidates() {
         description: "Candidate status updated successfully",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -92,17 +114,11 @@ export default function Candidates() {
       }
       toast({
         title: "Error",
-        description: "Failed to update candidate status",
+        description: error.message || "Failed to update candidate status",
         variant: "destructive",
       });
     },
   });
-
-  const handleStatusUpdate = (candidateId: number, newStatus: string) => {
-    updateCandidateMutation.mutate({ id: candidateId, status: newStatus });
-  };
-
-
 
   const handleCloseModal = () => {
     setShowAddModal(false);
@@ -117,8 +133,6 @@ export default function Candidates() {
     setSelectedCandidate(candidate);
     setShowDeleteDialog(true);
   };
-
-
 
   const deleteCandidateMutation = useMutation({
     mutationFn: async (candidateId: number) => {
@@ -159,6 +173,36 @@ export default function Candidates() {
     }
   };
 
+  // Get available status options based on current status
+  const getAvailableStatusOptions = (currentStatus: string) => {
+    switch (currentStatus?.toLowerCase()) {
+      case 'resume_reviewed':
+        return [
+          { value: 'resume_reviewed', label: 'Resume Reviewed' },
+          { value: 'interview_scheduled', label: 'Schedule Interview' }
+        ];
+      case 'interview_scheduled':
+        return [
+          { value: 'report_generated', label: 'Report Generated' }
+        ];
+      case 'report_generated':
+        return [
+          { value: 'hired', label: 'Hired' },
+          { value: 'not_selected', label: 'Not Selected' }
+        ];
+      case 'hired':
+      case 'not_selected':
+        // No further transitions allowed
+        return [
+          { value: currentStatus, label: currentStatus === 'hired' ? 'Hired' : 'Not Selected' }
+        ];
+      default:
+        return [
+          { value: 'resume_reviewed', label: 'Resume Reviewed' }
+        ];
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'resume_reviewed':
@@ -181,13 +225,16 @@ export default function Candidates() {
     return job?.jobTitle || 'Unknown Position';
   };
 
+  // Filter candidates to show only those handled by the logged-in user
   const filteredCandidates = candidates?.filter((candidate: any) => {
     const matchesSearch = candidate.candidateName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          candidate.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || candidate.status === statusFilter;
     const matchesPosition = positionFilter === "all" || candidate.jobId?.toString() === positionFilter;
+    // Add filter for HR handling user
+    const matchesHrUser = candidate.hrHandlingUserId === user?.id;
     
-    return matchesSearch && matchesStatus && matchesPosition;
+    return matchesSearch && matchesStatus && matchesPosition && matchesHrUser;
   }) || [];
 
   if (isLoading || !isAuthenticated) {
@@ -407,6 +454,7 @@ export default function Candidates() {
           <EditCandidateModal
             candidate={editingCandidate}
             onClose={() => setEditingCandidate(null)}
+            availableStatusOptions={editingCandidate ? getAvailableStatusOptions(editingCandidate.status) : undefined}
           />
         )}
 

@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import bcrypt from "bcryptjs";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
@@ -173,6 +173,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Update user profile
+  app.put('/api/users/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.params.id;
+      const sessionUser = req.session.user;
+      
+      // Ensure user can only update their own profile
+      if (sessionUser.id !== userId) {
+        return res.status(403).json({ message: "Forbidden: Cannot update another user's profile" });
+      }
+      
+      const { name, firstName, lastName } = req.body;
+      
+      // Only allow updating name fields
+      const updateData: Partial<User> = {};
+      if (name !== undefined) updateData.name = name;
+      if (firstName !== undefined) updateData.firstName = firstName;
+      if (lastName !== undefined) updateData.lastName = lastName;
+      
+      const updatedUser = await storage.updateUser(userId, updateData);
+      
+      // Update session user data
+      (req as any).session.user = {
+        ...sessionUser,
+        name: updatedUser.name,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+      };
+      
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   // Dashboard stats endpoint
   app.get('/api/dashboard/stats', isAuthenticated, async (req: any, res) => {
     try {
@@ -183,11 +219,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User or company not found" });
       }
 
-      // Get comprehensive dashboard data
-      const jobStats = await storage.getJobStats(user.companyId);
-      const candidateStats = await storage.getCandidateStats(user.companyId);
-      const pipelineData = await storage.getPipelineData(user.companyId);
-      const chartData = await storage.getChartData(user.companyId);
+      // Get comprehensive dashboard data filtered by HR user
+      const jobStats = await storage.getJobStats(user.companyId, sessionUser.id);
+      const candidateStats = await storage.getCandidateStats(user.companyId, sessionUser.id);
+      const pipelineData = await storage.getPipelineData(user.companyId, sessionUser.id);
+      const chartData = await storage.getChartData(user.companyId, sessionUser.id);
 
       res.json({
         jobStats,
@@ -236,7 +272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User or company not found" });
       }
 
-      const jobs = await storage.getJobsByCompany(user.companyId);
+      const jobs = await storage.getJobsByHRUser(user.companyId, sessionUser.id);
       res.json(jobs);
     } catch (error) {
       console.error("Error fetching jobs:", error);
@@ -338,7 +374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User or company not found" });
       }
 
-      const candidates = await storage.getCandidatesByCompany(user.companyId);
+      const candidates = await storage.getCandidatesByHRUser(sessionUser.id, user.companyId);
       res.json(candidates);
     } catch (error) {
       console.error("Error fetching candidates:", error);
@@ -511,6 +547,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking notification as read:", error);
       res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  app.put('/api/notifications/read-all', isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionUser = req.session.user;
+      await storage.markAllNotificationsAsRead(sessionUser.id);
+      res.json({ success: true, message: "All notifications marked as read" });
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      res.status(500).json({ message: "Failed to mark all notifications as read" });
     }
   });
 

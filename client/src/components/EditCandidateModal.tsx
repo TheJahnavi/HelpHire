@@ -28,9 +28,10 @@ import { X } from "lucide-react";
 interface EditCandidateModalProps {
   candidate?: any;
   onClose: () => void;
+  availableStatusOptions?: { value: string; label: string }[];
 }
 
-export default function EditCandidateModal({ candidate, onClose }: EditCandidateModalProps) {
+export default function EditCandidateModal({ candidate, onClose, availableStatusOptions }: EditCandidateModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -156,6 +157,11 @@ export default function EditCandidateModal({ candidate, onClose }: EditCandidate
   };
 
   const getStatusOptions = () => {
+    // Use passed availableStatusOptions if provided, otherwise calculate based on current status
+    if (availableStatusOptions && availableStatusOptions.length > 0) {
+      return availableStatusOptions;
+    }
+    
     const currentStatus = formData.status;
     const baseOptions = [
       { value: "applied", label: "Applied" },

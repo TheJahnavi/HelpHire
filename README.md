@@ -7,7 +7,7 @@ SmartHire is a professional multi-role login smart hiring web application design
 ## Features
 
 - **Multi-role Authentication**: Secure login for Super Admin, Company Admin, and HR roles
-- **AI Resume Processing**: Upload resumes (PDF/DOCX) and extract structured data using Google Gemini AI
+- **AI Resume Processing**: Upload resumes (PDF/DOCX) and extract structured data using OpenRouter AI
 - **Job Management**: Create, view, and manage job postings with skill requirements
 - **Candidate Management**: Add, edit, and track candidate profiles with AI-powered matching
 - **Intelligent Matching**: AI-driven candidate-to-job matching with percentage scores
@@ -31,7 +31,7 @@ SmartHire is a professional multi-role login smart hiring web application design
 - TypeScript Node.js backend
 - Drizzle ORM 0.39.1
 - PostgreSQL (Neon DB)
-- Google Gemini API for resume parsing
+- OpenRouter API for resume parsing
 
 ### Database
 - PostgreSQL (via @neondatabase/serverless)
@@ -45,7 +45,7 @@ SmartHire is a professional multi-role login smart hiring web application design
 
 - Node.js 20.x
 - PostgreSQL database (Neon recommended)
-- Google Gemini API key
+- OpenRouter API key (free tier available)
 
 ## Free Database Options
 

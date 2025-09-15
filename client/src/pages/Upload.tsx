@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, ChangeEvent } from "react";
+import { useState, ChangeEvent, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import {
@@ -94,6 +95,7 @@ interface InterviewQuestions {
 type UploadStep = "upload" | "extracted" | "matched" | "added";
 
 export default function Upload() {
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState<UploadStep>("upload");
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [extractedCandidates, setExtractedCandidates] = useState<ExtractedCandidate[]>([]);
@@ -108,9 +110,12 @@ export default function Upload() {
   const queryClient = useQueryClient();
 
   // Fetch available jobs
-  const { data: jobs = [] } = useQuery<any[]>({
+  const { data: allJobs = [], isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
+
+  // Filter jobs to show only those handled by the logged-in user
+  const jobs = allJobs.filter(job => job.hrHandlingUserId === user?.id);
 
   // Step 1: Upload and extract data
   const uploadMutation = useMutation({

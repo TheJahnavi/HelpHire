@@ -25,13 +25,25 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
 import AddJobModal from "@/components/AddJobModal";
+import { useLocation } from "wouter";
 
 export default function Jobs() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [location, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Parse query parameters from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const statusParam = urlParams.get('status');
+    
+    if (statusParam) {
+      setStatusFilter(statusParam);
+    }
+  }, []);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
@@ -116,6 +128,11 @@ export default function Jobs() {
     }
   };
 
+  // Get unique HR handling users for filter
+  const hrUsers = jobs?.map((job: any) => job.hrHandlingUserId)
+    .filter(Boolean)
+    .filter((value, index, self) => self.indexOf(value) === index) || [];
+
   const filteredJobs = jobs?.filter((job: any) => {
     const matchesSearch = job.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          job.jobDescription?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -162,6 +179,7 @@ export default function Jobs() {
               
               {/* Filters */}
               <div className="flex space-x-3">
+                {/* Status Filter */}
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[140px]" data-testid="status-filter">
                     <SelectValue placeholder="All Status" />
@@ -219,7 +237,9 @@ export default function Jobs() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">#{job.id}</TableCell>
                         <TableCell className="text-foreground">{job.addedByUserId || 'N/A'}</TableCell>
-                        <TableCell className="text-foreground">{job.hrHandlingUserId || 'N/A'}</TableCell>
+                        <TableCell className="text-foreground">
+                          {job.hrHandlingUserId === user?.id ? "Me" : job.hrHandlingUserId || 'N/A'}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{job.experience || 'Not specified'}</TableCell>
                         <TableCell className="text-muted-foreground">{job.positionsCount || 1}</TableCell>
                         <TableCell>
