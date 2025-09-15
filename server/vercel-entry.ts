@@ -1,9 +1,8 @@
 import 'dotenv/config';
-import express from "express";
-import { registerRoutes } from "./routes.vercel";
+import express, { type Express } from "express";
 import { serveStatic, log } from "./vite";
 
-const app = express();
+const app: Express = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -18,8 +17,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Register routes
-registerRoutes(app);
+// Simple API endpoint for testing
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API endpoint is working',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Serve static files
 serveStatic(app);

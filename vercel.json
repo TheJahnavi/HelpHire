@@ -5,8 +5,19 @@
       "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["dist/**", "server/routes.vercel.ts", "server/gemini.ts", "shared/**"]
+        "includeFiles": [
+          "dist/**", 
+          "server/gemini.ts", 
+          "shared/**",
+          "server/db.ts",
+          "server/storage.ts",
+          "server/vite.ts"
+        ]
       }
+    },
+    {
+      "src": "server/api-handler.ts",
+      "use": "@vercel/node"
     },
     {
       "src": "server/test-function.ts",
@@ -28,7 +39,7 @@
     },
     {
       "src": "/api/(.*)",
-      "dest": "/server/vercel-entry.ts"
+      "dest": "/server/api-handler.ts"
     },
     {
       "src": "/(.*)",
