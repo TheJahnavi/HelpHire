@@ -2,11 +2,9 @@
   "version": 2,
   "builds": [
     {
-      "src": "package.json",
+      "src": "server/vercel.ts",
       "use": "@vercel/node",
       "config": {
-        "buildCommand": "npm run build",
-        "outputDirectory": "dist/public",
         "includeFiles": ["dist/**"]
       }
     }
@@ -14,11 +12,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/index.ts"
+      "dest": "/server/vercel.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/dist/public/index.html"
+      "dest": "/server/vercel.ts"
     }
   ]
 }
