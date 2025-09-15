@@ -2,21 +2,37 @@
   "version": 2,
   "builds": [
     {
-      "src": "server/vercel.ts",
+      "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["dist/**", "server/routes.vercel.ts"]
+        "includeFiles": ["dist/**", "server/routes.vercel.ts", "server/gemini.ts", "shared/**"]
       }
+    },
+    {
+      "src": "server/test-function.ts",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "server/api-test.ts",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
+      "src": "/api/test",
+      "dest": "/server/test-function.ts"
+    },
+    {
+      "src": "/api/db-test",
+      "dest": "/server/api-test.ts"
+    },
+    {
       "src": "/api/(.*)",
-      "dest": "/server/vercel.ts"
+      "dest": "/server/vercel-entry.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/server/vercel.ts"
+      "dest": "/server/vercel-entry.ts"
     }
   ]
 }

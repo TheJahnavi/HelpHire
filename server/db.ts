@@ -14,7 +14,7 @@ if (!process.env.DATABASE_URL && process.env.VERCEL !== '1') {
 
 // Create pool with error handling
 let pool: Pool | undefined;
-let db: NeonDatabase<typeof schema> | null;
+let db: NeonDatabase<typeof schema> | null = null;
 
 try {
   if (process.env.DATABASE_URL) {

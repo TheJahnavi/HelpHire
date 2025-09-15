@@ -2,18 +2,16 @@ import type { Express } from "express";
 import { storage } from "./storage";
 import bcrypt from "bcryptjs";
 import session from "express-session";
-import connectPg from "connect-pg-simple";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import mammoth from "mammoth";
 import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini";
 
 // Setup multer for file uploads
 const upload = multer({
-  dest: 'uploads/',
+  dest: '/tmp/uploads/',
   fileFilter: (req, file, cb) => {
     const allowedExtensions = ['.pdf', '.docx', '.txt'];
     const fileExtension = path.extname(file.originalname).toLowerCase();
@@ -30,24 +28,15 @@ const upload = multer({
 
 // Session middleware
 function setupSession(app: Express) {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
-  
+  // Use memory store for Vercel since we can't use connect-pg-simple in serverless
   app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
-    store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false, // Set to true in production with HTTPS
-      maxAge: sessionTtl,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     },
   }));
 }

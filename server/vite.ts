@@ -73,7 +73,8 @@ export function serveStatic(app: Express) {
   const possiblePaths = [
     path.resolve(import.meta.dirname, "..", "dist", "public"),
     path.resolve(import.meta.dirname, "..", "..", "dist", "public"),
-    path.resolve(process.cwd(), "dist", "public")
+    path.resolve(process.cwd(), "dist", "public"),
+    path.resolve(process.cwd(), "public")
   ];
 
   let distPath = "";
