@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from "express";
-import { registerRoutes } from "./routes";
+import { registerRoutes } from "./routes.vercel";
 import { serveStatic, log } from "./vite";
 
 const app = express();
@@ -12,7 +12,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Register routes (without waiting for the promise to resolve)
+// Register routes
 registerRoutes(app);
 
 // Serve static files
