@@ -20,6 +20,8 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, sql, count } from "drizzle-orm";
+import type { NeonDatabase } from "drizzle-orm/neon-serverless";
+import * as schema from "@shared/schema";
 
 // Interface for storage operations
 export interface IStorage {
@@ -70,19 +72,30 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Helper method to check if database is available
+  private checkDatabase(): NeonDatabase<typeof schema> {
+    if (!db) {
+      throw new Error("Database connection is not available");
+    }
+    return db;
+  }
+
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+    const database = this.checkDatabase();
+    const [user] = await database.select().from(users).where(eq(users.id, id));
     return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const database = this.checkDatabase();
+    const [user] = await database.select().from(users).where(eq(users.email, email));
     return user;
   }
 
   async createUser(userData: InsertUser): Promise<User> {
-    const [user] = await db
+    const database = this.checkDatabase();
+    const [user] = await database
       .insert(users)
       .values(userData)
       .returning();
@@ -90,7 +103,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
-    const [user] = await db
+    const database = this.checkDatabase();
+    const [user] = await database
       .update(users)
       .set(updates)
       .where(eq(users.id, id))
@@ -100,17 +114,20 @@ export class DatabaseStorage implements IStorage {
 
   // Company operations
   async getCompany(id: number): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(eq(companies.id, id));
+    const database = this.checkDatabase();
+    const [company] = await database.select().from(companies).where(eq(companies.id, id));
     return company;
   }
 
   async getCompanyByName(name: string): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(eq(companies.companyName, name));
+    const database = this.checkDatabase();
+    const [company] = await database.select().from(companies).where(eq(companies.companyName, name));
     return company;
   }
 
   async createCompany(companyData: InsertCompany): Promise<Company> {
-    const [company] = await db
+    const database = this.checkDatabase();
+    const [company] = await database
       .insert(companies)
       .values(companyData)
       .returning();
@@ -118,16 +135,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompanies(): Promise<Company[]> {
-    return await db.select().from(companies);
+    const database = this.checkDatabase();
+    return await database.select().from(companies);
   }
 
   // Job operations
   async getJobsByCompany(companyId: number): Promise<Job[]> {
-    return await db.select().from(jobs).where(eq(jobs.companyId, companyId));
+    const database = this.checkDatabase();
+    return await database.select().from(jobs).where(eq(jobs.companyId, companyId));
   }
 
   async getJobsByHRUser(companyId: number, hrUserId: string): Promise<Job[]> {
-    return await db
+    const database = this.checkDatabase();
+    return await database
       .select()
       .from(jobs)
       .where(and(
@@ -137,12 +157,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getJob(jobId: number): Promise<Job | undefined> {
-    const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId));
+    const database = this.checkDatabase();
+    const [job] = await database.select().from(jobs).where(eq(jobs.id, jobId));
     return job;
   }
 
   async createJob(jobData: InsertJob): Promise<Job> {
-    const [job] = await db
+    const database = this.checkDatabase();
+    const [job] = await database
       .insert(jobs)
       .values(jobData)
       .returning();
@@ -150,7 +172,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateJob(id: number, updates: Partial<Job>): Promise<Job> {
-    const [job] = await db
+    const database = this.checkDatabase();
+    const [job] = await database
       .update(jobs)
       .set(updates)
       .where(eq(jobs.id, id))
@@ -159,9 +182,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteJob(id: number): Promise<{ success: boolean; message?: string }> {
+    const database = this.checkDatabase();
     try {
       // First check if there are any candidates associated with this job
-      const associatedCandidates = await db
+      const associatedCandidates = await database
         .select({ count: sql<number>`count(*)` })
         .from(candidates)
         .where(eq(candidates.jobId, id));
@@ -176,7 +200,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       // If no candidates are associated, proceed with deletion
-      const result = await db
+      const result = await database
         .delete(jobs)
         .where(eq(jobs.id, id));
       
@@ -192,7 +216,8 @@ export class DatabaseStorage implements IStorage {
 
   // Candidate operations
   async getCandidatesByCompany(companyId: number): Promise<Candidate[]> {
-    const result = await db
+    const database = this.checkDatabase();
+    const result = await database
       .select({
         id: candidates.id,
         candidateName: candidates.candidateName,
@@ -217,7 +242,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCandidatesByHRUser(hrUserId: string, companyId: number): Promise<Candidate[]> {
-    const result = await db
+    const database = this.checkDatabase();
+    const result = await database
       .select({
         id: candidates.id,
         candidateName: candidates.candidateName,
@@ -245,7 +271,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCandidate(candidateData: InsertCandidate): Promise<Candidate> {
-    const [candidate] = await db
+    const database = this.checkDatabase();
+    const [candidate] = await database
       .insert(candidates)
       .values(candidateData)
       .returning();
@@ -253,7 +280,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateCandidate(id: number, updates: Partial<Candidate>): Promise<Candidate> {
-    const [candidate] = await db
+    const database = this.checkDatabase();
+    const [candidate] = await database
       .update(candidates)
       .set(updates)
       .where(eq(candidates.id, id))
@@ -262,7 +290,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCandidate(id: number): Promise<boolean> {
-    const result = await db
+    const database = this.checkDatabase();
+    const result = await database
       .delete(candidates)
       .where(eq(candidates.id, id));
     return (result.rowCount || 0) > 0;
@@ -270,11 +299,13 @@ export class DatabaseStorage implements IStorage {
 
   // Todo operations
   async getTodosByUser(userId: string): Promise<Todo[]> {
-    return await db.select().from(todos).where(eq(todos.userId, userId));
+    const database = this.checkDatabase();
+    return await database.select().from(todos).where(eq(todos.userId, userId));
   }
 
   async createTodo(todoData: InsertTodo): Promise<Todo> {
-    const [todo] = await db
+    const database = this.checkDatabase();
+    const [todo] = await database
       .insert(todos)
       .values(todoData)
       .returning();
@@ -282,7 +313,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTodo(id: number, updates: Partial<Todo>): Promise<Todo> {
-    const [todo] = await db
+    const database = this.checkDatabase();
+    const [todo] = await database
       .update(todos)
       .set(updates)
       .where(eq(todos.id, id))
@@ -292,11 +324,13 @@ export class DatabaseStorage implements IStorage {
 
   // Notification operations
   async getNotificationsByUser(userId: string): Promise<Notification[]> {
-    return await db.select().from(notifications).where(eq(notifications.userId, userId));
+    const database = this.checkDatabase();
+    return await database.select().from(notifications).where(eq(notifications.userId, userId));
   }
 
   async createNotification(notificationData: InsertNotification): Promise<Notification> {
-    const [notification] = await db
+    const database = this.checkDatabase();
+    const [notification] = await database
       .insert(notifications)
       .values(notificationData)
       .returning();
@@ -304,6 +338,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createNotificationForCompany(companyId: number, message: string): Promise<void> {
+    const database = this.checkDatabase();
     // Get all users in the company
     const companyUsers = await this.getUsersByCompany(companyId);
     
@@ -318,11 +353,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUsersByCompany(companyId: number): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.companyId, companyId));
+    const database = this.checkDatabase();
+    return await database.select().from(users).where(eq(users.companyId, companyId));
   }
 
   async markNotificationAsRead(id: number): Promise<Notification> {
-    const [notification] = await db
+    const database = this.checkDatabase();
+    const [notification] = await database
       .update(notifications)
       .set({ readStatus: true })
       .where(eq(notifications.id, id))
@@ -331,7 +368,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {
-    await db
+    const database = this.checkDatabase();
+    await database
       .update(notifications)
       .set({ readStatus: true })
       .where(and(
@@ -342,7 +380,8 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard stats methods
   async getJobStats(companyId: number, hrUserId: string) {
-    const jobStats = await db
+    const database = this.checkDatabase();
+    const jobStats = await database
       .select({
         total: count(),
         active: count(sql`CASE WHEN ${jobs.jobStatus} = 'active' THEN 1 END`),
@@ -357,7 +396,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCandidateStats(companyId: number, hrUserId: string) {
-    const candidateStats = await db
+    const database = this.checkDatabase();
+    const candidateStats = await database
       .select({
         status: candidates.status,
         count: count(),
@@ -377,7 +417,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPipelineData(companyId: number, hrUserId: string) {
-    const candidateStats = await db
+    const database = this.checkDatabase();
+    const candidateStats = await database
       .select({
         status: candidates.status,
         count: count(),
@@ -397,6 +438,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getChartData(companyId: number, hrUserId: string) {
+    const database = this.checkDatabase();
     // Generate chart data based on actual job data filtered by HR user
     // This queries the jobs table and groups by month for the specific HR user
     

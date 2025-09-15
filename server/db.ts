@@ -1,5 +1,5 @@
 import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
@@ -13,8 +13,8 @@ if (!process.env.DATABASE_URL && process.env.VERCEL !== '1') {
 }
 
 // Create pool with error handling
-let pool;
-let db;
+let pool: Pool | undefined;
+let db: NeonDatabase<typeof schema> | null;
 
 try {
   if (process.env.DATABASE_URL) {
