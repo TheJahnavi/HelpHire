@@ -4,8 +4,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 
-// Small change to trigger deployment
-
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,22 +23,10 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files directly without importing vite module
-const possiblePaths = [
-  path.resolve(__dirname, "..", "dist", "public"),
-  path.resolve(__dirname, "..", "..", "dist", "public"),
-  path.resolve(process.cwd(), "dist", "public")
-];
+// Serve static files directly
+const distPath = path.resolve(__dirname, "..", "dist", "public");
 
-let distPath = "";
-for (const possiblePath of possiblePaths) {
-  if (fs.existsSync(possiblePath)) {
-    distPath = possiblePath;
-    break;
-  }
-}
-
-if (distPath) {
+if (fs.existsSync(distPath)) {
   console.log("Serving static files from:", distPath);
   app.use(express.static(distPath));
   
@@ -49,7 +35,7 @@ if (distPath) {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 } else {
-  console.warn("Could not find the build directory, serving API only");
+  console.warn("Could not find the build directory at:", distPath);
   // If no static files, just return a simple message
   app.use("*", (_req, res) => {
     res.status(200).json({ 

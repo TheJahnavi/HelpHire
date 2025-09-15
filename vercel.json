@@ -6,8 +6,7 @@
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
-          "dist/**", 
-          "server/vite.ts"
+          "dist/**"
         ]
       }
     },
