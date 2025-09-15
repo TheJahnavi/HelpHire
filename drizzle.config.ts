@@ -12,8 +12,4 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
-  // Add verbose logging for debugging
-  verbose: true,
-  // Enable strict mode for better error handling
-  strict: true,
 });

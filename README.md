@@ -49,8 +49,16 @@ SmartHire is a professional multi-role login smart hiring web application design
 
 ## Free Database Options
 
-### 1. Neon Database (Recommended)
-Neon is a serverless PostgreSQL that works seamlessly with this application.
+### 1. Neon Database Through Vercel (Recommended)
+Neon is a serverless PostgreSQL that works seamlessly with this application. The easiest way to set it up is through Vercel's integration:
+
+**Setup Steps:**
+1. Deploy your application to Vercel by importing your GitHub repository
+2. During deployment, accept the Neon PostgreSQL integration
+3. Vercel will automatically provision a Neon database and set the DATABASE_URL environment variable
+
+### 2. Direct Neon Setup
+If you prefer to set up Neon directly:
 
 **Free Tier Benefits:**
 - 1 GB of storage
@@ -63,14 +71,6 @@ Neon is a serverless PostgreSQL that works seamlessly with this application.
 3. Copy the connection string from the dashboard
 4. Add it to your `.env` file as `DATABASE_URL`
 
-### 2. Supabase
-Another excellent PostgreSQL option with a generous free tier.
-
-**Free Tier Benefits:**
-- 500 MB database space
-- 500 MB file storage
-- Up to 2 GB bandwidth per month
-
 ### 3. Railway
 Simple PostgreSQL database with a $5/month credit for free accounts.
 
@@ -78,8 +78,8 @@ Simple PostgreSQL database with a $5/month credit for free accounts.
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd SmartHire
+   git clone https://github.com/TheJahnavi/HelpHire.git
+   cd HelpHire
    ```
 
 2. **Install dependencies**
@@ -165,16 +165,17 @@ SmartHire/
 
 ## Hosting Options
 
-### Replit (Simplest)
-1. Push code to GitHub
-2. Import into Replit
-3. Add environment variables in the dashboard
-4. Run the application
+### Vercel + Neon (Recommended)
+1. Push code to GitHub (already done: https://github.com/TheJahnavi/HelpHire)
+2. Import repository into Vercel
+3. Accept Neon PostgreSQL integration during setup
+4. Add remaining environment variables in the Vercel dashboard
+5. Deploy the application
 
-### Vercel + Render
-1. Deploy frontend to Vercel
-2. Deploy backend to Render
-3. Configure environment variables on both platforms
+### Render
+1. Deploy the application to Render
+2. Add a PostgreSQL database
+3. Configure environment variables
 
 ## Contributing
 
