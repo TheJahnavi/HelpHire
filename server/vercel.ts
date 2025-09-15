@@ -7,13 +7,13 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Export the app for Vercel
-export default app;
-
-// Register routes
+// Register routes and serve static files
 registerRoutes(app).then(() => {
   // Serve static files
   serveStatic(app);
   
   log("Vercel server initialized");
 });
+
+// Export the app for Vercel
+export default app;
