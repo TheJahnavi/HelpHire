@@ -1,9 +1,14 @@
 import 'dotenv/config';
 import express, { type Express } from "express";
 import path from "path";
+import { fileURLToPath } from "url";
 import fs from "fs";
 
 // Small change to trigger deployment
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 app.use(express.json());
