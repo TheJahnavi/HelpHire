@@ -6,8 +6,9 @@ import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, inser
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
+import * as fs from "fs";
 import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini";
+import * as mammoth from "mammoth";
 
 // Setup multer for file uploads
 const upload = multer({
@@ -556,7 +557,8 @@ export function registerRoutes(app: Express) {
     try {
       if (fileExtension === '.pdf') {
         // Parse PDF file using dynamic import
-        const pdf = (await import('pdf-parse')).default;
+        const pdfModule = await import('pdf-parse');
+        const pdf = 'default' in pdfModule ? pdfModule.default : pdfModule;
         const dataBuffer = fs.readFileSync(file.path);
         const pdfData = await pdf(dataBuffer);
         return pdfData.text;
