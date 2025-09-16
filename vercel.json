@@ -6,6 +6,10 @@
       "use": "@vercel/static"
     },
     {
+      "src": "server/api-handler.ts",
+      "use": "@vercel/node"
+    },
+    {
       "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
