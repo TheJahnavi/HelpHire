@@ -23,10 +23,25 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files directly
-const distPath = path.resolve(__dirname, "..", "dist", "public");
+// Serve static files directly - check multiple possible paths
+const possiblePaths = [
+  path.resolve(__dirname, "..", "dist", "public"),  // Local development
+  path.resolve(__dirname, "..", "..", "dist", "public"),  // Vercel deployment
+  path.resolve(process.cwd(), "dist", "public"),  // Alternative path
+  path.resolve("/var/task/dist/public"),  // Vercel specific path
+];
 
-if (fs.existsSync(distPath)) {
+let distPath = "";
+for (const possiblePath of possiblePaths) {
+  console.log("Checking path:", possiblePath);
+  if (fs.existsSync(possiblePath)) {
+    distPath = possiblePath;
+    console.log("Found static files at:", distPath);
+    break;
+  }
+}
+
+if (distPath) {
   console.log("Serving static files from:", distPath);
   app.use(express.static(distPath));
   
@@ -35,7 +50,7 @@ if (fs.existsSync(distPath)) {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 } else {
-  console.warn("Could not find the build directory at:", distPath);
+  console.warn("Could not find the build directory. Checked paths:", possiblePaths);
   // If no static files, just return a simple message
   app.use("*", (_req, res) => {
     res.status(200).json({ 
