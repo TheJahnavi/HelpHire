@@ -12,6 +12,9 @@ const app: Express = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Serve static files from the dist/public directory
+app.use(express.static(path.join(__dirname, '..', 'dist', 'public')));
+
 // Add a simple test endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
