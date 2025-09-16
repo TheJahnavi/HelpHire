@@ -23,119 +23,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Enhanced static file serving with comprehensive debugging
-function findStaticFilesDirectory() {
-  console.log("=== Static File Directory Search ===");
-  console.log("Vercel environment:", process.env.VERCEL ? 'Yes' : 'No');
-  console.log("Current working directory:", process.cwd());
-  console.log("Current __dirname:", __dirname);
-  
-  // Log directory contents for debugging
-  try {
-    console.log("__dirname contents:", fs.readdirSync(__dirname));
-    const parentDir = path.join(__dirname, '..');
-    console.log("Parent directory contents:", fs.readdirSync(parentDir));
-    console.log("Current directory contents:", fs.readdirSync(process.cwd()));
-  } catch (err) {
-    console.error("Error reading directory contents:", err);
-  }
-
-  // Check multiple possible paths for dist/public
-  const possiblePaths = [
-    // Standard paths
-    path.join(process.cwd(), 'dist', 'public'),
-    path.join(__dirname, '..', 'dist', 'public'),
-    path.join(__dirname, '..', '..', 'dist', 'public'),
-    
-    // Vercel-specific paths
-    path.join('/var/task', 'dist', 'public'),
-    path.join(process.cwd(), 'public'),
-    path.join(__dirname, '..', 'public'),
-    path.join(__dirname, 'public'),
-    
-    // Additional Vercel paths
-    path.join(process.cwd(), '.vercel', 'output', 'static'),
-    path.join(__dirname, '..', '.vercel', 'output', 'static'),
-  ];
-
-  let distPath = '';
-  let foundPath = false;
-
-  for (const possiblePath of possiblePaths) {
-    console.log("Checking for static files at:", possiblePath);
-    try {
-      if (fs.existsSync(possiblePath)) {
-        const stat = fs.statSync(possiblePath);
-        if (stat.isDirectory()) {
-          distPath = possiblePath;
-          foundPath = true;
-          console.log("Static files found at:", distPath);
-          try {
-            const contents = fs.readdirSync(distPath);
-            console.log("Directory contents:", contents);
-            if (contents.includes('index.html')) {
-              console.log("index.html found in directory");
-            } else {
-              console.log("index.html NOT found in directory");
-            }
-          } catch (err) {
-            console.error("Error reading directory contents:", err);
-          }
-          break;
-        }
-      } else {
-        console.log("Path does not exist:", possiblePath);
-      }
-    } catch (err) {
-      console.error("Error checking path:", possiblePath, err);
-    }
-  }
-
-  // Additional debugging - check what's in the current directory and its parent
-  try {
-    console.log("=== Additional Directory Information ===");
-    console.log("Current directory contents:", fs.readdirSync(process.cwd()));
-    if (fs.existsSync(path.join(process.cwd(), 'dist'))) {
-      console.log("Contents of dist directory:", fs.readdirSync(path.join(process.cwd(), 'dist')));
-      if (fs.existsSync(path.join(process.cwd(), 'dist', 'public'))) {
-        console.log("Contents of dist/public directory:", fs.readdirSync(path.join(process.cwd(), 'dist', 'public')));
-      }
-    }
-  } catch (err) {
-    console.error("Error reading directory contents:", err);
-  }
-
-  if (foundPath) {
-    return distPath;
+// Serve index.html for all non-API routes (for client-side routing)
+app.use("*", (req, res) => {
+  // Don't serve index.html for API routes
+  if (req.url.startsWith('/api/')) {
+    return res.status(404).json({ message: "API route not found" });
   }
   
-  console.error("Static files directory not found at any of the checked paths:");
-  console.error("Checked paths:", possiblePaths);
-  return null;
-}
-
-const distPath = findStaticFilesDirectory();
-
-if (distPath) {
-  console.log("Serving static files from:", distPath);
-  app.use(express.static(distPath));  
-
-  // Fall through to index.html for client-side routing
-  app.use("*", (req, res) => {
-    console.log("Sending index.html for request:", req.url);
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-} else {
-  console.error("Falling back to JSON response because static files were not found");
-  
-  // Fallback to JSON response if static files are not found
-  app.use("*", (_req, res) => {
-    res.status(200).json({ 
-      message: "API server is running", 
-      timestamp: new Date().toISOString() 
-    });
-  });
-}
+  // Serve the index.html file
+  const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
+  res.sendFile(indexPath);
+});
 
 console.log("Vercel server initialized");
 

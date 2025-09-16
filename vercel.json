@@ -18,6 +18,10 @@
       "dest": "/server/api-handler.ts"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/dist/public/assets/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/server/vercel-entry.ts"
     }
