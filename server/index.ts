@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import { createServer, type Server } from "http";
+// Use the Vercel-specific routes file
+import { registerRoutes } from "./routes.vercel";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -41,7 +43,7 @@ app.use((req, res, next) => {
 export default app;
 
 (async () => {
-  const server = await registerRoutes(app);
+  await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -55,6 +57,7 @@ export default app;
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    const server = createServer(app);
     await setupVite(app, server);
   } else {
     serveStatic(app);
@@ -65,6 +68,7 @@ export default app;
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+  const server = createServer(app);
   server.listen(port, () => {
     log(`serving on port ${port}`);
   });
