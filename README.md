@@ -177,6 +177,10 @@ SmartHire/
 2. Add a PostgreSQL database
 3. Configure environment variables
 
+## Deployment Status
+
+Last updated: September 2025 - Fixed Vercel deployment issues with routes.vercel.ts
+
 ## Contributing
 
 1. Fork the repository

@@ -28,4 +28,5 @@
       "dest": "/server/vercel-entry.ts"
     }
   ]
+  // Updated to fix import issues with routes.vercel.ts
 }
