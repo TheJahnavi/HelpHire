@@ -2,6 +2,10 @@
   "version": 2,
   "builds": [
     {
+      "src": "dist/public/**/*",
+      "use": "@vercel/static"
+    },
+    {
       "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
