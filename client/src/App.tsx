@@ -17,11 +17,24 @@ import Profile from "@/pages/Profile";
 import NotificationsPage from "@/pages/NotificationsPage";
 import Layout from "@/components/Layout";
 
+// Test component to verify routing is working
+function TestPage() {
+  return (
+    <div style={{ padding: "20px", textAlign: "center" }}>
+      <h1>Test Page</h1>
+      <p>If you can see this, routing is working correctly.</p>
+    </div>
+  );
+}
+
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   return (
     <Switch>
+      {/* Test route */}
+      <Route path="/test" component={TestPage} />
+      
       {/* Public routes */}
       <Route path="/login" component={Login} />
       <Route path="/signin" component={Login} />
