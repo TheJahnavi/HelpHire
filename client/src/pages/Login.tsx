@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -54,6 +54,15 @@ export default function Login() {
 
   const selectedRole = form.watch("role");
   const showCompanyField = selectedRole && selectedRole !== "Super Admin";
+
+  // Pre-fill HR credentials when HR role is selected
+  useEffect(() => {
+    if (selectedRole === "HR") {
+      form.setValue("email", "hr@techcorp.com");
+      form.setValue("password", "hrpassword123");
+      form.setValue("company", "TechCorp");
+    }
+  }, [selectedRole, form]);
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);

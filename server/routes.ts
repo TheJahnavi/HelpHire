@@ -108,6 +108,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint to create an HR user programmatically (for testing)
+  app.post('/api/setup/hr', async (req, res) => {
+    try {
+      const { email, password, company } = req.body;
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User already exists with this email" });
+      }
+
+      // Hash password
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      // Find or create company
+      let companyId = null;
+      if (company) {
+        const existingCompany = await storage.getCompanyByName(company);
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          const newCompany = await storage.createCompany({ companyName: company });
+          companyId = newCompany.id;
+        }
+      }
+
+      // Create HR user
+      const user = await storage.createUser({
+        email,
+        name: "HR Manager",
+        passwordHash,
+        role: "HR",
+        companyId,
+        accountStatus: 'active',
+      });
+
+      res.json({ 
+        message: "HR user created successfully", 
+        credentials: {
+          email: user.email,
+          company: company,
+          password: password,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error("HR user creation error:", error);
+      res.status(500).json({ message: "Failed to create HR user" });
+    }
+  });
+
   app.post('/api/auth/login', async (req, res) => {
     try {
       const { email, password, role, company } = req.body;
