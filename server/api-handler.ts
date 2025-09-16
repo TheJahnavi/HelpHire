@@ -1,5 +1,18 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { storage } from './storage';
+
+// Add debugging at the top of the file
+console.log('api-handler.ts: Starting import process');
+
+let storage: any;
+
+try {
+  console.log('api-handler.ts: Attempting to import storage');
+  storage = require('./storage').storage;
+  console.log('api-handler.ts: Successfully imported storage');
+} catch (error) {
+  console.error('api-handler.ts: Failed to import storage:', error);
+  storage = null;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -31,6 +44,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         timestamp: new Date().toISOString(),
         DATABASE_URL_SET: !!process.env.DATABASE_URL,
         VERCEL_ENV: process.env.VERCEL
+      });
+    }
+
+    // Check if storage is available
+    if (!storage) {
+      console.error('Storage module not available');
+      return res.status(500).json({ 
+        message: 'Internal server error - storage module not available'
       });
     }
 
