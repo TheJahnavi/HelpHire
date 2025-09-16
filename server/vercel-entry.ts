@@ -23,67 +23,78 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve static files - simplified approach
-const distPath = path.join(process.cwd(), 'dist', 'public');
+// Serve static files - enhanced debugging approach
+console.log("Vercel environment:", process.env.VERCEL ? 'Yes' : 'No');
+console.log("Current working directory:", process.cwd());
+console.log("Current __dirname:", __dirname);
 
-if (fs.existsSync(distPath)) {
+// Check multiple possible paths for dist/public
+const possiblePaths = [
+  path.join(process.cwd(), 'dist', 'public'),
+  path.join(__dirname, '..', 'dist', 'public'),
+  path.join(__dirname, '..', '..', 'dist', 'public'),
+  path.join('/var/task', 'dist', 'public')
+];
+
+let distPath = '';
+let foundPath = false;
+
+for (const possiblePath of possiblePaths) {
+  console.log("Checking for static files at:", possiblePath);
+  if (fs.existsSync(possiblePath)) {
+    const stat = fs.statSync(possiblePath);
+    if (stat.isDirectory()) {
+      distPath = possiblePath;
+      foundPath = true;
+      console.log("Static files found at:", distPath);
+      try {
+        const contents = fs.readdirSync(distPath);
+        console.log("Directory contents:", contents);
+        if (contents.includes('index.html')) {
+          console.log("index.html found in directory");
+        } else {
+          console.log("index.html NOT found in directory");
+        }
+      } catch (err) {
+        console.error("Error reading directory contents:", err);
+      }
+      break;
+    }
+  } else {
+    console.log("Path does not exist:", possiblePath);
+  }
+}
+
+if (foundPath) {
   console.log("Serving static files from:", distPath);
-  app.use(express.static(distPath));
-  
+  app.use(express.static(distPath));  
+
   // Fall through to index.html for client-side routing
-  app.use("*", (_req, res) => {
+  app.use("*", (req, res) => {
+    console.log("Sending index.html for request:", req.url);
     res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
-  console.warn("Could not find static files at:", distPath);
-  console.warn("Current working directory:", process.cwd());
-  console.warn("Directory contents:", fs.readdirSync(process.cwd()));
+  console.error("Static files directory not found at any of the checked paths:");
+  console.error("Checked paths:", possiblePaths);
+  console.error("Current working directory:", process.cwd());
   
-  // Try to find dist directory anywhere
   try {
-    const files = fs.readdirSync(process.cwd());
-    console.warn("All files in cwd:", files);
-    
-    // Look for dist directory
-    if (files.includes('dist')) {
-      const distContents = fs.readdirSync(path.join(process.cwd(), 'dist'));
-      console.warn("Dist contents:", distContents);
-      
-      if (distContents.includes('public')) {
-        const publicPath = path.join(process.cwd(), 'dist', 'public');
-        console.log("Found public directory at:", publicPath);
-        app.use(express.static(publicPath));
-        app.use("*", (_req, res) => {
-          res.sendFile(path.join(publicPath, 'index.html'));
-        });
-      } else {
-        // If no static files, just return a simple message
-        app.use("*", (_req, res) => {
-          res.status(200).json({ 
-            message: "API server is running", 
-            timestamp: new Date().toISOString() 
-          });
-        });
-      }
-    } else {
-      // If no static files, just return a simple message
-      app.use("*", (_req, res) => {
-        res.status(200).json({ 
-          message: "API server is running", 
-          timestamp: new Date().toISOString() 
-        });
-      });
+    console.error("Contents of current directory:", fs.readdirSync(process.cwd()));
+    if (fs.existsSync(path.join(process.cwd(), 'dist'))) {
+      console.error("Contents of dist directory:", fs.readdirSync(path.join(process.cwd(), 'dist')));
     }
   } catch (err) {
-    console.error("Error reading directory:", err);
-    // If no static files, just return a simple message
-    app.use("*", (_req, res) => {
-      res.status(200).json({ 
-        message: "API server is running", 
-        timestamp: new Date().toISOString() 
-      });
-    });
+    console.error("Error reading directory contents:", err);
   }
+  
+  // Fallback to JSON response if static files are not found
+  app.use("*", (_req, res) => {
+    res.status(200).json({ 
+      message: "API server is running", 
+      timestamp: new Date().toISOString() 
+    });
+  });
 }
 
 console.log("Vercel server initialized");
