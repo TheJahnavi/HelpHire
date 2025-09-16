@@ -179,7 +179,7 @@ SmartHire/
 
 ## Deployment Status
 
-Last updated: September 2025 - Fixed Vercel deployment issues with routes.vercel.ts
+Last updated: September 2025 - Fixed Vercel deployment issues with routes.vercel.ts and vercel-entry.ts
 
 ## Contributing
 
