@@ -13,6 +13,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // Log environment info for debugging
+    console.log('Environment info:', {
+      VERCEL: process.env.VERCEL,
+      DATABASE_URL_SET: !!process.env.DATABASE_URL,
+      NODE_ENV: process.env.NODE_ENV
+    });
+
     const url = req.url || '/';
     const method = req.method || 'GET';
 
