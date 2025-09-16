@@ -30,8 +30,32 @@ app.get("*", (req, res) => {
     return res.status(404).json({ message: "API route not found" });
   }
   
-  // Serve the index.html file
-  const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
+  // Try multiple possible paths for index.html
+  const possiblePaths = [
+    path.join(__dirname, '..', 'dist', 'public', 'index.html'),
+    path.join(__dirname, 'dist', 'public', 'index.html'),
+    path.join(process.cwd(), 'dist', 'public', 'index.html'),
+    path.join(process.cwd(), '..', 'dist', 'public', 'index.html')
+  ];
+  
+  let indexPath = '';
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      indexPath = possiblePath;
+      break;
+    }
+  }
+  
+  // If we still can't find the file, log all paths for debugging
+  if (!indexPath) {
+    console.error('Could not find index.html in any of these locations:', possiblePaths);
+    return res.status(500).json({ 
+      message: 'Could not find index.html', 
+      attemptedPaths: possiblePaths 
+    });
+  }
+  
+  console.log('Serving index.html from:', indexPath);
   res.sendFile(indexPath);
 });
 
