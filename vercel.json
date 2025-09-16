@@ -2,30 +2,23 @@
   "version": 2,
   "builds": [
     {
-      "src": "dist/public/**/*",
-      "use": "@vercel/static"
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "outputDirectory": "dist/public" }
     },
     {
-      "src": "server/api-handler.ts",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "server/vercel-entry.ts",
+      "src": "server/index.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/api-handler.ts"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "/dist/public/assets/$1"
+      "dest": "/server/index.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/server/vercel-entry.ts"
+      "dest": "/dist/public/index.html"
     }
   ]
 }
