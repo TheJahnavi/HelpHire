@@ -11,13 +11,7 @@
     },
     {
       "src": "server/vercel-entry.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "dist/**",
-          "dist/public/**"
-        ]
-      }
+      "use": "@vercel/node"
     }
   ],
   "routes": [

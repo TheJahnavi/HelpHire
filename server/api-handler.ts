@@ -1,6 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import express from 'express';
-import { registerRoutes } from './routes';
 import { storage } from './storage';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -15,47 +13,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Create an Express app to handle the request
-    const app: express.Application = express();
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
-
-    // Register routes
-    await registerRoutes(app);
-
-    // Convert Vercel request to Express request
-    const expressReq = {
-      ...req,
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
-      body: req.body,
-      query: req.query,
-      params: {},
-    };
-
-    // Convert Vercel response to Express response
-    const expressRes = {
-      ...res,
-      status: (code: number) => {
-        res.status(code);
-        return expressRes;
-      },
-      json: (data: any) => {
-        res.json(data);
-      },
-      send: (data: any) => {
-        res.send(data);
-      },
-      end: () => {
-        res.end();
-      },
-    };
-
-    // Handle the request using Express routing
-    // This is a simplified approach - in a real implementation, you would
-    // need a more sophisticated way to match and handle routes
-    
     const url = req.url || '/';
     const method = req.method || 'GET';
 
@@ -169,8 +126,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // For other API routes, you would add similar handlers
     // For now, return a simple message
-    return res.status(200).json({ 
-      message: 'API endpoint is working',
+    return res.status(404).json({ 
+      message: 'API endpoint not found',
       path: url,
       method,
       timestamp: new Date().toISOString()
