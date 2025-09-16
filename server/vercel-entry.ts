@@ -24,7 +24,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Serve index.html for all non-API routes (for client-side routing)
-app.use("*", (req, res) => {
+app.get("*", (req, res) => {
   // Don't serve index.html for API routes
   if (req.url.startsWith('/api/')) {
     return res.status(404).json({ message: "API route not found" });
