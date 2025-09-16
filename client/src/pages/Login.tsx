@@ -77,6 +77,9 @@ export default function Login() {
         description: "Welcome back!",
       });
 
+      // Store user data in localStorage for Vercel deployment
+      localStorage.setItem("user", JSON.stringify(response.user));
+      
       // Redirect based on role
       if (data.role === "Super Admin") {
         window.location.href = "/super-admin/dashboard";
