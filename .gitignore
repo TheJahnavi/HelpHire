@@ -4,3 +4,9 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+# Test and temporary files
+create-hr-user.ts
+simple-server.js
+test-api.cjs
+test-import.js
+test-server.js
