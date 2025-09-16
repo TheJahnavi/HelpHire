@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import express from "express";
-import { registerRoutes } from "./routes.vercel";
 import { serveStatic, log } from "./vite";
 
 const app = express();
@@ -9,11 +8,14 @@ app.use(express.urlencoded({ extended: false }));
 
 // Add a simple test endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+  res.json({ 
+    status: 'ok', 
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    DATABASE_URL_SET: !!process.env.DATABASE_URL,
+    VERCEL_ENV: process.env.VERCEL
+  });
 });
-
-// Register routes
-registerRoutes(app);
 
 // Serve static files
 serveStatic(app);
