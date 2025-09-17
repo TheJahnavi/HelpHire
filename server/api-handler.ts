@@ -3,20 +3,20 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
 
-// Use dynamic async imports for ES modules
+// Use dynamic async imports for ES modules with .js extensions
 let storage: any = null;
 let db: any = null;
 
-// Load modules asynchronously
+// Load modules asynchronously with .js extensions
 Promise.all([
-  import('./db.ts').then(module => {
+  import('./db.js').then(module => {
     db = module;
     console.log('api-handler.ts: Successfully imported db');
   }).catch(error => {
     console.error('api-handler.ts: Failed to import db:', error);
     db = null;
   }),
-  import('./storage.ts').then(module => {
+  import('./storage.js').then(module => {
     storage = module.storage;
     console.log('api-handler.ts: Successfully imported storage');
   }).catch(error => {
