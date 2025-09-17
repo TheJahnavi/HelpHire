@@ -8,12 +8,19 @@ import fs from "fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Debug logging
+console.log('Vercel entry file loaded');
+console.log('__dirname:', __dirname);
+console.log('dist path:', path.join(__dirname, '..', 'dist', 'public'));
+
 const app: Express = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Serve static files from the dist/public directory
-app.use(express.static(path.join(__dirname, '..', 'dist', 'public')));
+const staticPath = path.join(__dirname, '..', 'dist', 'public');
+console.log('Static path:', staticPath);
+app.use(express.static(staticPath));
 
 // Add a simple test endpoint
 app.get('/api/health', (req, res) => {
@@ -22,7 +29,8 @@ app.get('/api/health', (req, res) => {
     message: 'Server is running',
     timestamp: new Date().toISOString(),
     DATABASE_URL_SET: !!process.env.DATABASE_URL,
-    VERCEL_ENV: process.env.VERCEL
+    VERCEL_ENV: process.env.VERCEL,
+    staticPath
   });
 });
 
@@ -47,7 +55,8 @@ app.get("*", (req, res) => {
     console.error('index.html not found at:', indexPath);
     return res.status(500).json({ 
       message: 'index.html not found',
-      path: indexPath
+      path: indexPath,
+      staticPath
     });
   }
   
