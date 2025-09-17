@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { db } from './db.ts';
 
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
