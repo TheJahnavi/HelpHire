@@ -3,6 +3,7 @@ import express, { type Express } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { registerRoutes } from "./routes.vercel.ts";
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +17,9 @@ console.log('dist path:', path.join(__dirname, '..', 'dist', 'public'));
 const app: Express = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Register API routes
+registerRoutes(app);
 
 // Serve static files from the dist/public directory
 const staticPath = path.join(__dirname, '..', 'dist', 'public');
@@ -31,18 +35,6 @@ app.get('/api/health', (req, res) => {
     DATABASE_URL_SET: !!process.env.DATABASE_URL,
     VERCEL_ENV: process.env.VERCEL,
     staticPath
-  });
-});
-
-// API routes - explicitly handle them before the catch-all
-// For Vercel serverless functions, we need to proxy API requests
-app.use('/api', (req, res) => {
-  // For API routes, we want Vercel to handle them via serverless functions
-  // So we'll return a 404 here to let Vercel's routing take over
-  res.status(404).json({ 
-    message: "API route should be handled by Vercel serverless functions",
-    path: req.url,
-    method: req.method
   });
 });
 
