@@ -3,6 +3,15 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
 
+// Log environment variables for debugging
+console.log('api-handler.ts: Environment variables:');
+console.log('  VERCEL:', process.env.VERCEL);
+console.log('  DATABASE_URL set:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  console.log('  DATABASE_URL length:', process.env.DATABASE_URL.length);
+  console.log('  DATABASE_URL starts with:', process.env.DATABASE_URL.substring(0, 50));
+}
+
 // Use dynamic async imports for ES modules with .js extensions
 let storage: any = null;
 let db: any = null;

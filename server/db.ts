@@ -29,6 +29,15 @@ let db: NeonDatabase<typeof schema> | null = null;
 
 try {
   if (process.env.DATABASE_URL) {
+    // Log the database URL (without sensitive information) for debugging
+    console.log('DATABASE_URL is set. Length:', process.env.DATABASE_URL.length);
+    console.log('DATABASE_URL starts with:', process.env.DATABASE_URL.substring(0, 50));
+    
+    // Check if the URL contains encoded characters
+    if (process.env.DATABASE_URL.includes('%20')) {
+      console.warn('DATABASE_URL contains encoded spaces (%20) which may cause issues');
+    }
+    
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     db = drizzle({ client: pool, schema });
   } else {
@@ -37,6 +46,7 @@ try {
   }
 } catch (error) {
   console.error("Failed to initialize database connection:", error);
+  console.error("DATABASE_URL value:", process.env.DATABASE_URL);
   db = null;
 }
 
