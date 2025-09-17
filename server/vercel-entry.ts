@@ -3,7 +3,6 @@ import express, { type Express } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { registerRoutes } from "./routes.vercel.ts";
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -18,15 +17,12 @@ const app: Express = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Register API routes
-registerRoutes(app);
-
 // Serve static files from the dist/public directory
 const staticPath = path.join(__dirname, '..', 'dist', 'public');
 console.log('Static path:', staticPath);
 app.use(express.static(staticPath));
 
-// Add a simple test endpoint
+// Simple API routes that don't depend on database or session
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
