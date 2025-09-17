@@ -16,6 +16,25 @@ if (typeof window === 'undefined') {
   }
 }
 
+// Function to sanitize DATABASE_URL
+function sanitizeDatabaseUrl(url: string): string {
+  console.log('Original DATABASE_URL:', url);
+  
+  // Remove any shell command prefixes like 'psql ' or 'psql%20'
+  let sanitized = url.replace(/^psql\s*(['"]?)/i, '').replace(/^psql%20(['"]?)/i, '');
+  
+  // Remove any trailing quotes
+  sanitized = sanitized.replace(/['"]$/, '');
+  
+  // Remove channel_binding parameter if present
+  sanitized = sanitized.replace(/&channel_binding=require/g, '');
+  sanitized = sanitized.replace(/\?channel_binding=require&/, '?');
+  sanitized = sanitized.replace(/\?channel_binding=require$/, '');
+  
+  console.log('Sanitized DATABASE_URL:', sanitized);
+  return sanitized;
+}
+
 // Only throw error if we're not in a Vercel environment
 if (!process.env.DATABASE_URL && process.env.VERCEL !== '1') {
   throw new Error(
@@ -38,7 +57,10 @@ try {
       console.warn('DATABASE_URL contains encoded spaces (%20) which may cause issues');
     }
     
-    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    // Sanitize the DATABASE_URL before using it
+    const sanitizedUrl = sanitizeDatabaseUrl(process.env.DATABASE_URL);
+    
+    pool = new Pool({ connectionString: sanitizedUrl });
     db = drizzle({ client: pool, schema });
   } else {
     console.warn("DATABASE_URL not set - database functionality will be limited");
