@@ -1,14 +1,23 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { db } from './db.ts';
 
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
 
 let storage: any;
+let db: any;
+
+try {
+  console.log('api-handler.ts: Attempting to import db');
+  db = require('./db.ts');
+  console.log('api-handler.ts: Successfully imported db');
+} catch (error) {
+  console.error('api-handler.ts: Failed to import db:', error);
+  db = null;
+}
 
 try {
   console.log('api-handler.ts: Attempting to import storage');
-  storage = require('./storage').storage;
+  storage = require('./storage.ts').storage;
   console.log('api-handler.ts: Successfully imported storage');
 } catch (error) {
   console.error('api-handler.ts: Failed to import storage:', error);

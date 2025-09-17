@@ -1,9 +1,20 @@
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
 import * as schema from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+// Set WebSocket constructor dynamically if in a Node.js environment
+if (typeof window === 'undefined') {
+  try {
+    // Dynamically import ws only if needed
+    import('ws').then((wsModule) => {
+      neonConfig.webSocketConstructor = wsModule.default || wsModule;
+    }).catch((error) => {
+      console.warn('Could not import ws module:', error);
+    });
+  } catch (error) {
+    console.warn('WebSocket module setup failed:', error);
+  }
+}
 
 // Only throw error if we're not in a Vercel environment
 if (!process.env.DATABASE_URL && process.env.VERCEL !== '1') {
