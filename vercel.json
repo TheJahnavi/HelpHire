@@ -10,6 +10,10 @@
       }
     },
     {
+      "src": "server/api-handler.ts",
+      "use": "@vercel/node"
+    },
+    {
       "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
@@ -20,7 +24,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/vercel-entry.ts"
+      "dest": "/server/api-handler.ts"
     },
     {
       "src": "/(.*)",
