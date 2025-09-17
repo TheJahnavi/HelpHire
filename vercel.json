@@ -13,7 +13,7 @@
       "src": "server/api-handler.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "{shared/**,server/**}"
+        "includeFiles": "{shared/**,server/**,package.json}"
       }
     },
     {
