@@ -3,26 +3,31 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
 
-let storage: any;
-let db: any;
+// Use dynamic async imports for ES modules
+let storage: any = null;
+let db: any = null;
 
-try {
-  console.log('api-handler.ts: Attempting to import db');
-  db = require('./db.ts');
-  console.log('api-handler.ts: Successfully imported db');
-} catch (error) {
-  console.error('api-handler.ts: Failed to import db:', error);
-  db = null;
-}
-
-try {
-  console.log('api-handler.ts: Attempting to import storage');
-  storage = require('./storage.ts').storage;
-  console.log('api-handler.ts: Successfully imported storage');
-} catch (error) {
-  console.error('api-handler.ts: Failed to import storage:', error);
-  storage = null;
-}
+// Load modules asynchronously
+Promise.all([
+  import('./db.ts').then(module => {
+    db = module;
+    console.log('api-handler.ts: Successfully imported db');
+  }).catch(error => {
+    console.error('api-handler.ts: Failed to import db:', error);
+    db = null;
+  }),
+  import('./storage.ts').then(module => {
+    storage = module.storage;
+    console.log('api-handler.ts: Successfully imported storage');
+  }).catch(error => {
+    console.error('api-handler.ts: Failed to import storage:', error);
+    storage = null;
+  })
+]).then(() => {
+  console.log('api-handler.ts: All modules loaded');
+}).catch(error => {
+  console.error('api-handler.ts: Error loading modules:', error);
+});
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -55,6 +60,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         DATABASE_URL_SET: !!process.env.DATABASE_URL,
         VERCEL_ENV: process.env.VERCEL
       });
+    }
+
+    // Wait for storage to be loaded if it's still loading
+    let attempts = 0;
+    while (!storage && attempts < 20) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      attempts++;
     }
 
     // Check if storage is available
