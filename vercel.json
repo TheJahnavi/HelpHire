@@ -5,21 +5,22 @@
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "outputDirectory": "dist/public"
+        "outputDirectory": "dist/public",
+        "distDir": "dist/public"
       }
     },
     {
-      "src": "server/api-handler.ts",
+      "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "server/**"
+        "includeFiles": "dist/**"
       }
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/api-handler.ts"
+      "dest": "/server/vercel-entry.ts"
     },
     {
       "src": "/(.*)",
