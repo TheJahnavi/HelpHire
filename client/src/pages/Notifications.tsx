@@ -49,7 +49,7 @@ export default function Notifications({ onClose }: NotificationsProps) {
 
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("PUT", "/api/notifications/read-all");
+      await apiRequest("/api/notifications/read-all", { method: "PUT" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
@@ -80,7 +80,7 @@ export default function Notifications({ onClose }: NotificationsProps) {
 
   const updateTodoMutation = useMutation({
     mutationFn: async ({ id, isCompleted }: { id: number; isCompleted: boolean }) => {
-      await apiRequest("PUT", `/api/todos/${id}`, { isCompleted });
+      await apiRequest(`/api/todos/${id}`, { method: "PUT", body: { isCompleted } });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/todos"] });

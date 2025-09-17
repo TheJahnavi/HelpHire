@@ -86,6 +86,7 @@ export default function Login() {
       } else if (data.role === "Company Admin") {
         window.location.href = "/company-admin/dashboard";
       } else {
+        // For HR users, redirect to the main dashboard
         window.location.href = "/hr/dashboard";
       }
     } catch (error: any) {

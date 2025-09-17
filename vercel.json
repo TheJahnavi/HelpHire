@@ -7,14 +7,14 @@
       "config": { "outputDirectory": "dist/public" }
     },
     {
-      "src": "server/index.ts",
+      "src": "server/api-handler.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/index.ts"
+      "dest": "/server/api-handler.ts"
     },
     {
       "src": "/(.*)",

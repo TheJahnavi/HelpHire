@@ -57,15 +57,31 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-    role: "HR", // Default role for now - can be customized later
-    name: `${claims["first_name"] || ""} ${claims["last_name"] || ""}`.trim() || claims["email"],
-  });
+  // Check if user exists
+  const existingUser = await storage.getUser(claims["sub"]);
+  
+  if (existingUser) {
+    // Update existing user
+    await storage.updateUser(claims["sub"], {
+      email: claims["email"],
+      firstName: claims["first_name"],
+      lastName: claims["last_name"],
+      profileImageUrl: claims["profile_image_url"],
+      name: `${claims["first_name"] || ""} ${claims["last_name"] || ""}`.trim() || claims["email"],
+    });
+  } else {
+    // Create new user
+    await storage.createUser({
+      id: claims["sub"],
+      email: claims["email"],
+      firstName: claims["first_name"],
+      lastName: claims["last_name"],
+      profileImageUrl: claims["profile_image_url"],
+      role: "HR", // Default role for now - can be customized later
+      name: `${claims["first_name"] || ""} ${claims["last_name"] || ""}`.trim() || claims["email"],
+      accountStatus: 'active',
+    });
+  }
 }
 
 export async function setupAuth(app: Express) {

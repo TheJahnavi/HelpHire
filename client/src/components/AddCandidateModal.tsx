@@ -57,7 +57,7 @@ export default function AddCandidateModal({ candidate, onClose }: AddCandidateMo
 
   const createCandidateMutation = useMutation({
     mutationFn: async (candidateData: any) => {
-      const response = await apiRequest("POST", "/api/candidates", candidateData);
+      const response = await apiRequest("/api/candidates", { method: "POST", body: candidateData });
       return response.json();
     },
     onSuccess: () => {
@@ -90,7 +90,7 @@ export default function AddCandidateModal({ candidate, onClose }: AddCandidateMo
 
   const updateCandidateMutation = useMutation({
     mutationFn: async (candidateData: any) => {
-      const response = await apiRequest("PUT", `/api/candidates/${candidate.id}`, candidateData);
+      const response = await apiRequest(`/api/candidates/${candidate.id}`, { method: "PUT", body: candidateData });
       return response.json();
     },
     onSuccess: () => {
@@ -138,7 +138,7 @@ export default function AddCandidateModal({ candidate, onClose }: AddCandidateMo
   const removeSkill = (skillToRemove: string) => {
     setFormData(prev => ({
       ...prev,
-      candidateSkills: prev.candidateSkills.filter(skill => skill !== skillToRemove)
+      candidateSkills: prev.candidateSkills.filter((skill: string) => skill !== skillToRemove)
     }));
   };
 

@@ -62,6 +62,7 @@ function Router() {
           <Route path="/hr/notifications" component={NotificationsPage} />
         </>
       )}
+      {/* This should be the last route to catch all unmatched paths */}
       <Route component={NotFound} />
     </Switch>
   );

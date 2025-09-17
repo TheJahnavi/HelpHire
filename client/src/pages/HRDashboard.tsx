@@ -7,6 +7,21 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { isUnauthorizedError } from "@/lib/authUtils";
+
+// Helper function to get stage colors
+const getStageColor = (stage: string) => {
+  const colors: Record<string, string> = {
+    'Applied': '#8884d8',
+    'Resume Reviewed': '#83a6ed',
+    'Interview Scheduled': '#8dd1e1',
+    'Technical Round': '#82ca9d',
+    'Final Round': '#a4de6c',
+    'Hired': '#ffc658',
+    'Rejected': '#ff8042'
+  };
+  return colors[stage] || '#8884d8';
+};
 
 export default function HRDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -27,7 +42,7 @@ export default function HRDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: stats, isLoading: statsLoading } = useQuery<{
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<{
     jobStats: { total: number; active: number };
     candidateStats: Array<{ status: string; count: number }>;
     pipelineData: Array<{ stage: string; count: number }>;
@@ -35,12 +50,39 @@ export default function HRDashboard() {
   }>({
     queryKey: ["/api/dashboard/stats"],
     retry: false,
+    enabled: isAuthenticated, // Only fetch if authenticated
   });
 
-  const { data: todos = [], isLoading: todosLoading } = useQuery<any[]>({
+  const { data: todos = [], isLoading: todosLoading, error: todosError } = useQuery<any[]>({
     queryKey: ["/api/todos"],
     retry: false,
+    enabled: isAuthenticated, // Only fetch if authenticated
   });
+
+  // Handle unauthorized errors
+  useEffect(() => {
+    if (statsError && isUnauthorizedError(statsError as any)) {
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again.",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 500);
+    }
+    
+    if (todosError && isUnauthorizedError(todosError as any)) {
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again.",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 500);
+    }
+  }, [statsError, todosError, toast]);
 
   if (isLoading || statsLoading) {
     return (
@@ -199,10 +241,10 @@ export default function HRDashboard() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={pipelineData} layout="horizontal">
+                  <BarChart data={candidateStats}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="stage" type="category" width={120} />
+                    <XAxis dataKey="status" />
+                    <YAxis />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: "hsl(var(--background))", 
@@ -210,7 +252,11 @@ export default function HRDashboard() {
                         borderRadius: "6px"
                       }}
                     />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" />
+                    <Bar dataKey="count" fill="hsl(262, 70%, 50%)" name="Candidates">
+                      {candidateStats.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getStageColor(entry.status)} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -218,57 +264,65 @@ export default function HRDashboard() {
           </div>
         </div>
 
-        {/* Right Side Panel - To-Do List */}
-        <div className="fixed right-0 top-16 h-full w-80 bg-card border-l border-border p-6 overflow-auto">
+        {/* Right Sidebar - To-Do List */}
+        <div className="w-80 border-l border-border p-6 overflow-auto">
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold mb-4">To-Do List</h2>
-              {todosLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : todos.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No tasks found</p>
-                  <p className="text-sm">You're all caught up!</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {todos.map((todo: any) => (
-                    <div
-                      key={todo.id}
-                      className={`p-3 rounded-lg border ${
-                        todo.isCompleted 
-                          ? 'bg-muted/50 border-muted' 
-                          : 'bg-background border-border'
-                      }`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <Checkbox
-                          checked={todo.isCompleted}
-                          className="mt-1"
-                          data-testid={`todo-checkbox-${todo.id}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm ${
-                            todo.isCompleted 
-                              ? 'line-through text-muted-foreground' 
-                              : 'text-foreground'
-                          }`}>
-                            {todo.task}
-                          </p>
-                          {todo.createdAt && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {new Date(todo.createdAt).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+              <h2 className="text-xl font-bold mb-4">To-Do List</h2>
+              <div className="space-y-3">
+                {todosLoading ? (
+                  <p className="text-muted-foreground">Loading tasks...</p>
+                ) : todos.length === 0 ? (
+                  <p className="text-muted-foreground">No pending tasks</p>
+                ) : (
+                  todos.map((todo: any) => (
+                    <div key={todo.id} className="flex items-start space-x-3 p-3 bg-muted/50 rounded-lg">
+                      <Checkbox
+                        id={`todo-${todo.id}`}
+                        checked={todo.isCompleted}
+                        className="mt-1"
+                      />
+                      <label
+                        htmlFor={`todo-${todo.id}`}
+                        className={`text-sm ${todo.isCompleted ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+                      >
+                        {todo.task}
+                      </label>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div>
+              <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
+              <div className="space-y-3">
+                <Link href="/hr/upload">
+                  <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <CardContent className="flex items-center p-4">
+                      <Users className="h-5 w-5 mr-3 text-muted-foreground" />
+                      <span>Upload Resumes</span>
+                    </CardContent>
+                  </Card>
+                </Link>
+                <Link href="/hr/jobs">
+                  <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <CardContent className="flex items-center p-4">
+                      <Briefcase className="h-5 w-5 mr-3 text-muted-foreground" />
+                      <span>Manage Jobs</span>
+                    </CardContent>
+                  </Card>
+                </Link>
+                <Link href="/hr/candidates">
+                  <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <CardContent className="flex items-center p-4">
+                      <CheckSquare className="h-5 w-5 mr-3 text-muted-foreground" />
+                      <span>Review Candidates</span>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -276,23 +330,3 @@ export default function HRDashboard() {
     </div>
   );
 }
-
-// Helper function to get colors for different stages
-const getStageColor = (stage: string) => {
-  switch (stage?.toLowerCase()) {
-    case 'applied':
-      return "hsl(220, 70%, 50%)"; // Blue
-    case 'resume_reviewed':
-      return "hsl(32, 95%, 44%)"; // Orange
-    case 'interview_scheduled':
-      return "hsl(271, 81%, 56%)"; // Purple
-    case 'report_generated':
-      return "hsl(142, 76%, 36%)"; // Green
-    case 'hired':
-      return "hsl(142, 76%, 36%)"; // Green
-    case 'not_selected':
-      return "hsl(0, 84%, 60%)"; // Red
-    default:
-      return "hsl(220, 70%, 50%)"; // Blue
-  }
-};

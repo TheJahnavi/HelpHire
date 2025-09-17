@@ -66,12 +66,15 @@ export default function Signup() {
   const onSubmit = async (data: SignupFormData) => {
     setIsLoading(true);
     try {
-      await apiRequest("POST", "/api/auth/signup", {
-        name: data.name,
-        email: data.email,
-        password: data.password,
-        role: data.role,
-        company: data.company,
+      await apiRequest("/api/auth/signup", { 
+        method: "POST", 
+        body: {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          role: data.role,
+          company: data.company,
+        }
       });
       
       setIsSuccess(true);
