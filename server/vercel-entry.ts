@@ -35,9 +35,15 @@ app.get('/api/health', (req, res) => {
 });
 
 // API routes - explicitly handle them before the catch-all
-app.get('/api/*', (req, res) => {
-  // This will be handled by the serverless functions
-  res.status(404).json({ message: "API route not found in vercel-entry" });
+// For Vercel serverless functions, we need to proxy API requests
+app.use('/api', (req, res) => {
+  // For API routes, we want Vercel to handle them via serverless functions
+  // So we'll return a 404 here to let Vercel's routing take over
+  res.status(404).json({ 
+    message: "API route should be handled by Vercel serverless functions",
+    path: req.url,
+    method: req.method
+  });
 });
 
 // Serve index.html for all non-API routes (for client-side routing)
