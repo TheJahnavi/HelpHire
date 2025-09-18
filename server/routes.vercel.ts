@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { storage } from "./storage.ts";
+import { storage } from "./storage.js";
 import bcrypt from "bcryptjs";
 import session from "express-session";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "../shared/schema.js";
@@ -7,7 +7,7 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import * as fs from "fs";
-import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini.ts";
+import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini.js";
 import * as mammoth from "mammoth";
 
 // Setup multer for file uploads
