@@ -37,58 +37,6 @@ const modulesLoaded = Promise.all([
   console.log('api-handler.ts: DB available:', !!db);
 });
 
-// Helper function to parse resume files
-async function parseResumeFile(file: any): Promise<string> {
-  const fileExtension = path.extname(file.filename).toLowerCase();
-  
-  try {
-    if (fileExtension === '.pdf') {
-      // Parse PDF file using dynamic import
-      const pdfModule = await import('pdf-parse');
-      const pdf = 'default' in pdfModule ? pdfModule.default : pdfModule;
-      const pdfData = await pdf(file);
-      return pdfData.text;
-    } else if (fileExtension === '.docx') {
-      // Parse DOCX file
-      const result = await mammoth.extractRawText({ buffer: file });
-      return result.value;
-    } else if (fileExtension === '.txt') {
-      // Parse TXT file
-      return file.toString();
-    } else {
-      throw new Error(`Unsupported file type: ${fileExtension}`);
-    }
-  } catch (parseError) {
-    console.error(`Failed to parse ${file.filename}:`, parseError);
-    throw new Error(`Could not extract text from ${file.filename}: ${parseError}`);
-  }
-}
-
-// Helper function to extract files from Vercel request
-async function extractFilesFromRequest(req: VercelRequest): Promise<any[]> {
-  // In Vercel serverless functions, files are in req.files
-  if (req.files && Array.isArray(req.files)) {
-    return req.files;
-  }
-  
-  // If files are in a property, extract them
-  if (req.files) {
-    const files: any[] = [];
-    for (const key in req.files) {
-      const fileOrFiles = req.files[key];
-      if (Array.isArray(fileOrFiles)) {
-        files.push(...fileOrFiles);
-      } else {
-        files.push(fileOrFiles);
-      }
-    }
-    return files;
-  }
-  
-  // If no files found, return empty array
-  return [];
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -438,72 +386,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (url === '/api/upload/resumes' && method === 'POST') {
       try {
         console.log("Handling resume upload request");
-        console.log("Request files:", req.files);
-        console.log("Request body:", req.body);
+        console.log("Request headers:", req.headers);
+        console.log("Content-Type:", req.headers['content-type']);
         
-        // Extract files from the request
-        const files = await extractFilesFromRequest(req);
-        console.log("Extracted files:", files?.length || 0);
-        
-        if (!files || files.length === 0) {
-          console.log("No files received in upload request");
-          return res.status(400).json({ message: "No files uploaded" });
-        }
-
-        const extractedCandidates: any[] = [];
-        const processingErrors: string[] = [];
-
-        for (const file of files) {
-          try {
-            console.log(`Processing file: ${file.filename || file.originalFilename} (${file.type || file.mimetype})`);
-            
-            // Parse the actual file content
-            const resumeText = await parseResumeFile(file);
-            
-            if (!resumeText || resumeText.trim().length < 50) {
-              const errorMsg = `Insufficient text content extracted from ${file.filename || file.originalFilename} (${resumeText?.length || 0} characters)`;
-              console.log(errorMsg);
-              throw new Error(errorMsg);
-            }
-
-            console.log(`Extracted ${resumeText.length} characters from ${file.filename || file.originalFilename}`);
-            
-            // Use Gemini AI to extract candidate data from the actual resume text
-            const extractedData = await extractResumeData(resumeText);
-            const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            // Validate that we got meaningful data
-            if (!extractedData.name || !extractedData.email) {
-              const errorMsg = `Failed to extract valid candidate data from ${file.filename || file.originalFilename}`;
-              console.log(errorMsg);
-              throw new Error(errorMsg);
-            }
-            
-            extractedCandidates.push({
-              ...extractedData,
-              id: candidateId
-            });
-
-            console.log(`Successfully processed ${file.filename || file.originalFilename} - Extracted: ${extractedData.name}`);
-
-          } catch (error) {
-            const errorMessage = `Error processing file ${file.filename || file.originalFilename}: ${error}`;
-            console.error(errorMessage);
-            processingErrors.push(errorMessage);
-          }
-        }
-
-        // Return results with any processing errors
-        const response: any = { candidates: extractedCandidates };
-        if (processingErrors.length > 0) {
-          response.errors = processingErrors;
-          response.message = `Processed ${extractedCandidates.length} of ${files.length} files successfully`;
-        } else if (extractedCandidates.length === 0) {
-          response.message = "No candidate data could be extracted from the uploaded files";
-        }
-
-        console.log(`Upload response: ${extractedCandidates.length} candidates extracted, ${processingErrors.length} errors`);
-        return res.status(200).json(response);
+        // In Vercel serverless functions, we can't directly access files from multipart form data
+        // The request body will contain the file data if it's been parsed by Vercel
+        // For now, we'll return a more informative error message
+        return res.status(501).json({ 
+          message: "Resume upload not supported in production deployment",
+          details: "Vercel serverless functions do not support direct file upload handling. Please use the development server for file uploads, or implement a client-side file processing solution."
+        });
       } catch (error) {
         console.error("Error in resume upload:", error);
         return res.status(500).json({ 

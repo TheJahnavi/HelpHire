@@ -111,18 +111,136 @@ export default function Upload() {
     ? allJobs 
     : allJobs.filter(job => job.hrHandlingUserId === user?.id);
 
+  // Client-side file parsing function
+  const parseFileContent = async (file: File): Promise<string> => {
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        try {
+          const content = e.target?.result as string;
+          
+          if (fileExtension === 'pdf') {
+            // For PDF files, we'll need to use a library or send to backend
+            // In production, we'll show a message that PDF parsing requires backend
+            reject(new Error('PDF parsing requires backend processing. Please use development server for PDF files.'));
+          } else if (fileExtension === 'docx') {
+            // For DOCX files, we'll need to use a library or send to backend
+            // In production, we'll show a message that DOCX parsing requires backend
+            reject(new Error('DOCX parsing requires backend processing. Please use development server for DOCX files.'));
+          } else if (fileExtension === 'txt') {
+            // For TXT files, we can parse directly
+            resolve(content);
+          } else {
+            reject(new Error(`Unsupported file type: ${fileExtension}`));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('Failed to read file'));
+      };
+      
+      if (fileExtension === 'pdf' || fileExtension === 'docx') {
+        // For binary files, read as array buffer
+        reader.readAsArrayBuffer(file);
+      } else {
+        // For text files, read as text
+        reader.readAsText(file);
+      }
+    });
+  };
+
+  // Client-side candidate extraction function (simplified)
+  const extractCandidateData = async (text: string, filename: string): Promise<ExtractedCandidate> => {
+    // This is a simplified extraction for demonstration
+    // In a real implementation, you would use a more sophisticated approach
+    const lines = text.split('\n').filter(line => line.trim() !== '');
+    
+    // Simple extraction logic
+    const name = lines.find(line => line.match(/name|contact/i))?.split(':').pop()?.trim() || 
+                 filename.replace(/\.[^/.]+$/, "") || 'Unknown Candidate';
+    
+    const email = lines.find(line => line.includes('@'))?.trim() || 'unknown@example.com';
+    
+    // Extract skills (simple keyword matching)
+    const skillKeywords = ['javascript', 'python', 'java', 'react', 'angular', 'node', 'sql', 'html', 'css'];
+    const skills = skillKeywords.filter(skill => 
+      text.toLowerCase().includes(skill.toLowerCase())
+    );
+    
+    // Extract experience (simple pattern matching)
+    const experienceMatch = text.match(/(\d+)\s*(?:years?|yrs?)/i);
+    const experienceYears = experienceMatch ? parseInt(experienceMatch[1]) : 0;
+    
+    return {
+      id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      email,
+      skills,
+      experience: {
+        years: experienceYears,
+        projects: []
+      },
+      summary: `Extracted from ${filename}. This is a simplified extraction.`
+    };
+  };
+
   // Step 1: Upload and extract data
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("resumes", file);
-      });
+      // Check if we're in production (Vercel deployment)
+      const isProduction = process.env.NODE_ENV === 'production' || 
+                          (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'));
+      
+      if (isProduction) {
+        // In production, process files client-side for supported formats
+        const extractedCandidates: ExtractedCandidate[] = [];
+        const processingErrors: string[] = [];
+        
+        for (const file of files) {
+          try {
+            // Only process TXT files client-side in production
+            const fileExtension = file.name.split('.').pop()?.toLowerCase();
+            
+            if (fileExtension === 'txt') {
+              const content = await parseFileContent(file);
+              const candidate = await extractCandidateData(content, file.name);
+              extractedCandidates.push(candidate);
+            } else {
+              // For other file types, add an error message
+              processingErrors.push(`File ${file.name} requires backend processing. Please use the development server for ${fileExtension?.toUpperCase()} files.`);
+            }
+          } catch (error) {
+            processingErrors.push(`Error processing file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        
+        return {
+          candidates: extractedCandidates,
+          errors: processingErrors.length > 0 ? processingErrors : undefined,
+          message: processingErrors.length > 0 
+            ? `Processed ${extractedCandidates.length} of ${files.length} files successfully` 
+            : extractedCandidates.length > 0 
+              ? `Successfully extracted data from ${extractedCandidates.length} files` 
+              : "No candidate data could be extracted from the uploaded files"
+        };
+      } else {
+        // In development, use the backend API
+        const formData = new FormData();
+        files.forEach((file) => {
+          formData.append("resumes", file);
+        });
 
-      return apiRequest("/api/upload/resumes", {
-        method: "POST",
-        body: formData,
-      });
+        return apiRequest("/api/upload/resumes", {
+          method: "POST",
+          body: formData,
+        });
+      }
     },
     onSuccess: (data) => {
       console.log("Upload response data:", data); // Add logging to debug
@@ -146,13 +264,14 @@ export default function Upload() {
       } else if (data.errors && data.errors.length > 0) {
         // Check if it's an API key error
         const hasAuthError = data.errors.some((error: string) => 
-          error.includes("API key") || error.includes("401") || error.includes("authentication")
+          error.includes("API key") || error.includes("401") || error.includes("authentication") || 
+          error.includes("backend processing") || error.includes("development server")
         );
         
         toast({
-          title: hasAuthError ? "API Configuration Error" : "Extraction Failed",
+          title: hasAuthError ? "File Processing Limitation" : "Extraction Failed",
           description: hasAuthError 
-            ? "Invalid API key or authentication failed. Please check your API configuration." 
+            ? "Some file types require backend processing. Please use the development server for full functionality." 
             : "Files uploaded but no candidate data was extracted. Please check file formats and content.",
           variant: "destructive",
         });
@@ -298,7 +417,7 @@ export default function Upload() {
     } else {
       toast({
         title: "Error",
-        description: "Please select files to upload",
+        description: "Please select at least one file to upload",
         variant: "destructive",
       });
     }
