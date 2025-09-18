@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 // Use the Vercel-specific routes file
-import { registerRoutes } from "./routes.vercel.ts";
+import { registerRoutes } from "./routes.vercel.js";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();

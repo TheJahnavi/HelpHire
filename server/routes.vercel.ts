@@ -1,13 +1,13 @@
 import type { Application, Request, Response } from "express";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 import bcrypt from "bcryptjs";
 import session from "express-session";
-import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "../shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "../shared/schema.js";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import * as fs from "fs";
-import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini";
+import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini.js";
 import * as mammoth from "mammoth";
 
 // Setup multer for file uploads
