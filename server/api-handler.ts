@@ -189,47 +189,98 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const userId = req.headers['x-user-id'] as string;
       
       if (url === '/api/dashboard/stats') {
-        // Return mock data for now - in a real implementation, you would fetch real data
-        return res.status(200).json({
-          jobStats: { total: 15, active: 10 },
-          candidateStats: [
-            { status: 'applied', count: 30 },
-            { status: 'interview_scheduled', count: 15 },
-            { status: 'hired', count: 5 },
-            { status: 'rejected', count: 10 }
-          ],
-          pipelineData: [
-            { stage: 'Applied', count: 30 },
-            { stage: 'Resume Reviewed', count: 25 },
-            { stage: 'Interview Scheduled', count: 15 },
-            { stage: 'Technical Round', count: 10 },
-            { stage: 'Final Round', count: 7 },
-            { stage: 'Hired', count: 5 }
-          ],
-          chartData: [
-            { month: 'Jan', opened: 6, filled: 3 },
-            { month: 'Feb', opened: 8, filled: 4 },
-            { month: 'Mar', opened: 7, filled: 2 },
-            { month: 'Apr', opened: 10, filled: 5 },
-            { month: 'May', opened: 11, filled: 4 },
-            { month: 'Jun', opened: 15, filled: 7 }
-          ]
-        });
+        try {
+          // Check if we have a user ID
+          if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+          }
+          
+          // Get user details
+          const user = await storage.getUser(userId);
+          if (!user || !user.companyId) {
+            return res.status(404).json({ message: "User or company not found" });
+          }
+          
+          // Get comprehensive dashboard data filtered by HR user
+          const jobStats = await storage.getJobStats(user.companyId, userId);
+          const candidateStats = await storage.getCandidateStats(user.companyId, userId);
+          const pipelineData = await storage.getPipelineData(user.companyId, userId);
+          const chartData = await storage.getChartData(user.companyId, userId);
+
+          return res.status(200).json({
+            jobStats,
+            candidateStats: candidateStats.statusStats || [],
+            pipelineData,
+            chartData
+          });
+        } catch (error) {
+          console.error("Error fetching dashboard stats:", error);
+          return res.status(500).json({ message: "Failed to fetch dashboard stats" });
+        }
       } else if (url === '/api/todos') {
-        // Return mock todos data
-        return res.status(200).json([
-          { id: 1, task: 'Review new candidate applications', isCompleted: false },
-          { id: 2, task: 'Schedule interviews for frontend developers', isCompleted: true },
-          { id: 5, task: 'Follow up with candidates from yesterday', isCompleted: false },
-          { id: 6, task: 'Update hiring pipeline report', isCompleted: false }
-        ]);
+        try {
+          // Check if we have a user ID
+          if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+          }
+          
+          const todos = await storage.getTodosByUser(userId);
+          return res.status(200).json(todos);
+        } catch (error) {
+          console.error("Error fetching todos:", error);
+          return res.status(500).json({ message: "Failed to fetch todos" });
+        }
       } else if (url === '/api/notifications') {
-        // Return mock notifications data
-        return res.status(200).json([
-          { id: 1, message: 'New candidate application received', timestamp: '2023-06-15T10:30:00Z', readStatus: false },
-          { id: 4, message: 'Candidate profile updated', timestamp: '2023-06-15T09:15:00Z', readStatus: false },
-          { id: 5, message: 'Interview feedback submitted', timestamp: '2023-06-15T08:45:00Z', readStatus: true }
-        ]);
+        try {
+          // Check if we have a user ID
+          if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+          }
+          
+          const notifications = await storage.getNotificationsByUser(userId);
+          return res.status(200).json(notifications);
+        } catch (error) {
+          console.error("Error fetching notifications:", error);
+          return res.status(500).json({ message: "Failed to fetch notifications" });
+        }
+      } else if (url === '/api/jobs') {
+        try {
+          // Check if we have a user ID
+          if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+          }
+          
+          // Get user details
+          const user = await storage.getUser(userId);
+          if (!user || !user.companyId) {
+            return res.status(404).json({ message: "User or company not found" });
+          }
+
+          const jobs = await storage.getJobsByHRUser(user.companyId, userId);
+          return res.status(200).json(jobs);
+        } catch (error) {
+          console.error("Error fetching jobs:", error);
+          return res.status(500).json({ message: "Failed to fetch jobs" });
+        }
+      } else if (url === '/api/candidates') {
+        try {
+          // Check if we have a user ID
+          if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+          }
+          
+          // Get user details
+          const user = await storage.getUser(userId);
+          if (!user || !user.companyId) {
+            return res.status(404).json({ message: "User or company not found" });
+          }
+
+          const candidates = await storage.getCandidatesByHRUser(userId, user.companyId);
+          return res.status(200).json(candidates);
+        } catch (error) {
+          console.error("Error fetching candidates:", error);
+          return res.status(500).json({ message: "Failed to fetch candidates" });
+        }
       }
     }
 
