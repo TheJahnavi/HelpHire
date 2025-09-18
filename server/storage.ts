@@ -17,11 +17,11 @@ import {
   type InsertCandidate,
   type InsertNotification,
   type InsertTodo,
-} from "../shared/schema.js";
-import { db } from "./db.js";
+} from "../shared/schema";
+import { db } from "./db";
 import { eq, and, sql, count } from "drizzle-orm";
 import type { NeonDatabase } from "drizzle-orm/neon-serverless";
-import * as schema from "../shared/schema.js";
+import * as schema from "../shared/schema";
 
 // Interface for storage operations
 export interface IStorage {

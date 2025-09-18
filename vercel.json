@@ -13,8 +13,7 @@
       "src": "server/routes.vercel.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "{shared/**,server/**,package.json}",
-        "buildCommand": "npm run build"
+        "includeFiles": "{shared/**,server/**,package.json}"
       }
     },
     {

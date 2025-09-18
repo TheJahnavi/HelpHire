@@ -1,6 +1,6 @@
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
-import * as schema from "../shared/schema.js";
+import * as schema from "../shared/schema";
 
 // Set WebSocket constructor dynamically if in a Node.js environment
 if (typeof window === 'undefined') {
