@@ -10,7 +10,7 @@
       }
     },
     {
-      "src": "server/api-handler.ts",
+      "src": "server/routes.vercel.ts",
       "use": "@vercel/node",
       "config": {
         "includeFiles": "{shared/**,server/**,package.json}"
@@ -27,7 +27,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/api-handler.ts"
+      "dest": "/server/routes.vercel.ts"
     },
     {
       "src": "/(.*)",
