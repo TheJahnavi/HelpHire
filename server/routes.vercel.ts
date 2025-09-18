@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Application, Request, Response } from "express";
 import { storage } from "./storage.js";
 import bcrypt from "bcryptjs";
 import session from "express-session";
@@ -28,7 +28,7 @@ const upload = multer({
 });
 
 // Session middleware
-function setupSession(app: Express) {
+function setupSession(app: Application) {
   // Use memory store for Vercel since we can't use connect-pg-simple in serverless
   app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
@@ -65,14 +65,14 @@ const isAuthenticated = (req: any, res: any, next: any) => {
   return res.status(401).json({ message: "Unauthorized" });
 };
 
-export function registerRoutes(app: Express) {
+export function registerRoutes(app: Application) {
   console.log('Registering routes...');
   
   // Setup session middleware
   setupSession(app);
 
   // Health check endpoint
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (req: Request, res: Response) => {
     console.log('Health check endpoint hit');
     res.json({ 
       status: 'ok', 
@@ -86,7 +86,7 @@ export function registerRoutes(app: Express) {
   // Auth routes
   console.log('Registering auth routes...');
   
-  app.post('/api/auth/signup', async (req, res) => {
+  app.post('/api/auth/signup', async (req: Request, res: Response) => {
     try {
       const { name, email, password, role, company } = req.body;
       
@@ -128,7 +128,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', async (req: Request, res: Response) => {
     console.log('Handling login request...');
     try {
       const { email, password, role, company } = req.body;
@@ -1153,3 +1153,15 @@ export function registerRoutes(app: Express) {
     }
   });
 }
+
+// Create Express app and register routes
+import express from "express";
+const app: Application = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Register all routes
+registerRoutes(app);
+
+// Export the app for Vercel
+export default app;
