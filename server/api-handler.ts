@@ -3,6 +3,28 @@ import { storage } from "./storage.js";
 import bcrypt from "bcryptjs";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema } from "../shared/schema.js";
 import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import * as fs from "fs";
+import * as mammoth from "mammoth";
+import { extractResumeData, calculateJobMatch } from "./gemini.js";
+
+// Setup multer for file uploads
+const upload = multer({
+  dest: '/tmp/uploads/',
+  fileFilter: (req, file, cb) => {
+    const allowedExtensions = ['.pdf', '.docx', '.txt'];
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    if (allowedExtensions.includes(fileExtension)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF, DOCX, and TXT files are allowed'));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  }
+});
 
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
@@ -32,6 +54,34 @@ const modulesLoaded = Promise.all([
   console.log('api-handler.ts: All modules loaded');
   console.log('api-handler.ts: DB available:', !!db);
 });
+
+// Helper function to parse resume files
+async function parseResumeFile(file: Express.Multer.File): Promise<string> {
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+  
+  try {
+    if (fileExtension === '.pdf') {
+      // Parse PDF file using dynamic import
+      const pdfModule = await import('pdf-parse');
+      const pdf = 'default' in pdfModule ? pdfModule.default : pdfModule;
+      const dataBuffer = fs.readFileSync(file.path);
+      const pdfData = await pdf(dataBuffer);
+      return pdfData.text;
+    } else if (fileExtension === '.docx') {
+      // Parse DOCX file
+      const result = await mammoth.extractRawText({ path: file.path });
+      return result.value;
+    } else if (fileExtension === '.txt') {
+      // Parse TXT file
+      return fs.readFileSync(file.path, 'utf-8');
+    } else {
+      throw new Error(`Unsupported file type: ${fileExtension}`);
+    }
+  } catch (parseError) {
+    console.error(`Failed to parse ${file.originalname}:`, parseError);
+    throw new Error(`Could not extract text from ${file.originalname}: ${parseError}`);
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -296,6 +346,148 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
+    // Handle candidate routes
+    else if (url === '/api/candidates' && method === 'GET') {
+      try {
+        const candidates = await storage.getCandidatesByHRUser(userId, user.companyId);
+        return res.status(200).json(candidates);
+      } catch (error) {
+        console.error("Error fetching candidates:", error);
+        return res.status(500).json({ message: "Failed to fetch candidates" });
+      }
+    } else if (url === '/api/candidates' && method === 'POST') {
+      try {
+        const candidateData = insertCandidateSchema.parse({
+          ...req.body,
+          hrHandlingUserId: userId,
+        });
+        
+        const candidate = await storage.createCandidate(candidateData);
+        return res.status(200).json(candidate);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid input", errors: error.errors });
+        }
+        console.error("Error creating candidate:", error);
+        return res.status(500).json({ message: "Failed to create candidate" });
+      }
+    } else if (url.startsWith('/api/candidates/') && method === 'PUT') {
+      try {
+        const id = parseInt(url.split('/')[3]);
+        const updateData = req.body;
+        
+        const candidate = await storage.updateCandidate(id, updateData);
+
+        // Create notification for status changes
+        if (updateData.status) {
+          const statusMessages: Record<string, string> = {
+            'resume_reviewed': 'reviewed',
+            'interview_scheduled': 'scheduled for interview',
+            'report_generated': 'report generated',
+            'hired': 'hired',
+            'not_selected': 'not selected'
+          };
+          
+          const statusMessage = statusMessages[updateData.status] || 'updated';
+          await storage.createNotificationForCompany(
+            user.companyId,
+            `Candidate ${candidate.candidateName} has been ${statusMessage} by ${user.name}`
+          );
+        }
+
+        return res.status(200).json(candidate);
+      } catch (error) {
+        console.error("Error updating candidate:", error);
+        return res.status(500).json({ message: "Failed to update candidate" });
+      }
+    } else if (url.startsWith('/api/candidates/') && method === 'DELETE') {
+      try {
+        const id = parseInt(url.split('/')[3]);
+        
+        const deleted = await storage.deleteCandidate(id);
+        if (!deleted) {
+          return res.status(404).json({ message: "Candidate not found" });
+        }
+        
+        return res.status(200).json({ success: true, message: "Candidate deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting candidate:", error);
+        return res.status(500).json({ message: "Failed to delete candidate" });
+      }
+    }
+    
+    // Handle file upload for candidates
+    else if (url === '/api/candidates/upload' && method === 'POST') {
+      try {
+        // Note: In Vercel serverless functions, file upload handling is limited
+        // We'll need to handle this differently in the frontend
+        return res.status(501).json({ message: "File upload not implemented in this handler" });
+      } catch (error) {
+        console.error("Error uploading candidate:", error);
+        return res.status(500).json({ message: "Failed to upload candidate" });
+      }
+    }
+    
+    // Handle resume upload and analysis
+    else if (url === '/api/upload/resumes' && method === 'POST') {
+      try {
+        // Note: In Vercel serverless functions, file upload handling is limited
+        // We'll need to handle this differently in the frontend
+        return res.status(501).json({ message: "Resume upload not implemented in this handler" });
+      } catch (error) {
+        console.error("Error in resume upload:", error);
+        return res.status(500).json({ 
+          message: "Failed to process resumes",
+          error: "Unknown error occurred"
+        });
+      }
+    }
+    
+    // Handle job matching endpoint
+    else if (url === '/api/ai/match-candidates' && method === 'POST') {
+      try {
+        const { candidates, jobId } = req.body;
+        
+        const job = await storage.getJob(jobId);
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
+        }
+
+        const matchResults = [];
+        for (const candidate of candidates) {
+          try {
+            const matchResult = await calculateJobMatch(
+              candidate,
+              job.jobTitle,
+              job.skills || [],
+              job.jobDescription || '',
+              job.experience || '',
+              job.note || ''
+            );
+            
+            matchResults.push({
+              candidateId: candidate.id,
+              ...matchResult
+            });
+          } catch (matchError) {
+            console.error(`Error matching candidate ${candidate.id}:`, matchError);
+            matchResults.push({
+              candidateId: candidate.id,
+              error: matchError instanceof Error ? matchError.message : 'Unknown error'
+            });
+          }
+        }
+
+        return res.status(200).json({ matches: matchResults });
+      } catch (error) {
+        console.error("Error in candidate matching:", error);
+        return res.status(500).json({ 
+          message: "Failed to match candidates",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+    
     // Handle GET requests for specific API endpoints
     if (method === 'GET') {
       if (url === '/api/dashboard/stats') {
@@ -331,14 +523,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (error) {
           console.error("Error fetching notifications:", error);
           return res.status(500).json({ message: "Failed to fetch notifications" });
-        }
-      } else if (url === '/api/candidates') {
-        try {
-          const candidates = await storage.getCandidatesByHRUser(userId, user.companyId);
-          return res.status(200).json(candidates);
-        } catch (error) {
-          console.error("Error fetching candidates:", error);
-          return res.status(500).json({ message: "Failed to fetch candidates" });
         }
       }
     }
