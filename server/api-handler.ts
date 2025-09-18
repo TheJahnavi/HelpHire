@@ -1,4 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { storage } from "./storage.js";
+import bcrypt from "bcryptjs";
+import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema } from "../shared/schema.js";
+import { z } from "zod";
 
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
@@ -13,7 +17,6 @@ if (process.env.DATABASE_URL) {
 }
 
 // Use dynamic async imports for ES modules with .js extensions
-let storage: any = null;
 let db: any = null;
 
 // Load modules asynchronously with .js extensions
@@ -24,17 +27,9 @@ const modulesLoaded = Promise.all([
   }).catch(error => {
     console.error('api-handler.ts: Failed to import db:', error);
     db = null;
-  }),
-  import('./storage.js').then(module => {
-    storage = module.storage;
-    console.log('api-handler.ts: Successfully imported storage');
-  }).catch(error => {
-    console.error('api-handler.ts: Failed to import storage:', error);
-    storage = null;
   })
 ]).then(() => {
   console.log('api-handler.ts: All modules loaded');
-  console.log('api-handler.ts: Storage available:', !!storage);
   console.log('api-handler.ts: DB available:', !!db);
 });
 
@@ -59,6 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const url = req.url || '/';
     const method = req.method || 'GET';
+    const userId = req.headers['x-user-id'] as string;
 
     // Handle health check
     if (url === '/api/health' && method === 'GET') {
@@ -179,24 +175,131 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
+    // Require user ID for all other endpoints
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+    
+    // Get user details
+    const user = await storage.getUser(userId);
+    if (!user || !user.companyId) {
+      return res.status(404).json({ message: "User or company not found" });
+    }
+    
+    // Handle job routes
+    if (url === '/api/jobs' && method === 'GET') {
+      try {
+        const jobs = await storage.getJobsByHRUser(user.companyId, userId);
+        return res.status(200).json(jobs);
+      } catch (error) {
+        console.error("Error fetching jobs:", error);
+        return res.status(500).json({ message: "Failed to fetch jobs" });
+      }
+    } else if (url === '/api/jobs' && method === 'POST') {
+      try {
+        console.log("Request body:", req.body);
+        console.log("User details:", { userId: user.id, companyId: user.companyId });
+        
+        // Validate required fields
+        if (!req.body.jobTitle || !req.body.jobDescription) {
+          return res.status(400).json({ message: "Job title and description are required" });
+        }
+        
+        const jobData = insertJobSchema.parse({
+          ...req.body,
+          addedByUserId: user.id,
+          companyId: user.companyId,
+          hrHandlingUserId: user.id, // Also set HR handling user
+        });
+        
+        console.log("Parsed job data:", jobData);
+        
+        const job = await storage.createJob(jobData);
+
+        // Create notification for all company users about new job
+        await storage.createNotificationForCompany(
+          user.companyId,
+          `New job "${job.jobTitle}" has been posted by ${user.name}`
+        );
+
+        return res.status(200).json(job);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          console.error("Job creation validation error:", error.errors);
+          return res.status(400).json({ 
+            message: "Invalid input", 
+            errors: error.errors,
+            details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
+          });
+        }
+        console.error("Error creating job:", error);
+        // Provide more specific error message
+        if (error instanceof Error) {
+          return res.status(500).json({ 
+            message: "Failed to create job", 
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          });
+        }
+        return res.status(500).json({ 
+          message: "Failed to create job",
+          error: "Unknown error occurred"
+        });
+      }
+    } else if (url.startsWith('/api/jobs/') && method === 'PUT') {
+      try {
+        const id = parseInt(url.split('/')[3]);
+        const updateData = req.body;
+        
+        const job = await storage.updateJob(id, updateData);
+
+        // Create notification for all company users about job update
+        await storage.createNotificationForCompany(
+          user.companyId,
+          `Job "${job.jobTitle}" has been updated by ${user.name}`
+        );
+
+        return res.status(200).json(job);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          console.error("Job update validation error:", error.errors);
+          return res.status(400).json({ message: "Invalid input", errors: error.errors });
+        }
+        console.error("Error updating job:", error);
+        return res.status(500).json({ message: "Failed to update job" });
+      }
+    } else if (url.startsWith('/api/jobs/') && method === 'DELETE') {
+      try {
+        const id = parseInt(url.split('/')[3]);
+        
+        // First, get the job to ensure we can create a proper notification
+        const job = await storage.getJob(id);
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
+        }
+        
+        const result = await storage.deleteJob(id);
+        if (!result.success) {
+          return res.status(400).json({ message: result.message || "Failed to delete job" });
+        }
+        
+        // Create notification for job deletion
+        await storage.createNotificationForCompany(
+          user.companyId,
+          `Job "${job.jobTitle}" has been deleted by ${user.name}`
+        );
+        
+        return res.status(200).json({ success: true, message: result.message || "Job deleted successfully" });
+      } catch (error) {
+        console.error("Error deleting job:", error);
+        return res.status(500).json({ message: "Failed to delete job" });
+      }
+    }
+    
     // Handle GET requests for specific API endpoints
     if (method === 'GET') {
-      // For dashboard stats and other protected endpoints, we'll check for user ID in headers
-      const userId = req.headers['x-user-id'] as string;
-      
       if (url === '/api/dashboard/stats') {
         try {
-          // Check if we have a user ID
-          if (!userId) {
-            return res.status(400).json({ message: "User ID is required" });
-          }
-          
-          // Get user details
-          const user = await storage.getUser(userId);
-          if (!user || !user.companyId) {
-            return res.status(404).json({ message: "User or company not found" });
-          }
-          
           // Get comprehensive dashboard data filtered by HR user
           const jobStats = await storage.getJobStats(user.companyId, userId);
           const candidateStats = await storage.getCandidateStats(user.companyId, userId);
@@ -215,11 +318,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       } else if (url === '/api/todos') {
         try {
-          // Check if we have a user ID
-          if (!userId) {
-            return res.status(400).json({ message: "User ID is required" });
-          }
-          
           const todos = await storage.getTodosByUser(userId);
           return res.status(200).json(todos);
         } catch (error) {
@@ -228,49 +326,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       } else if (url === '/api/notifications') {
         try {
-          // Check if we have a user ID
-          if (!userId) {
-            return res.status(400).json({ message: "User ID is required" });
-          }
-          
           const notifications = await storage.getNotificationsByUser(userId);
           return res.status(200).json(notifications);
         } catch (error) {
           console.error("Error fetching notifications:", error);
           return res.status(500).json({ message: "Failed to fetch notifications" });
         }
-      } else if (url === '/api/jobs') {
-        try {
-          // Check if we have a user ID
-          if (!userId) {
-            return res.status(400).json({ message: "User ID is required" });
-          }
-          
-          // Get user details
-          const user = await storage.getUser(userId);
-          if (!user || !user.companyId) {
-            return res.status(404).json({ message: "User or company not found" });
-          }
-
-          const jobs = await storage.getJobsByHRUser(user.companyId, userId);
-          return res.status(200).json(jobs);
-        } catch (error) {
-          console.error("Error fetching jobs:", error);
-          return res.status(500).json({ message: "Failed to fetch jobs" });
-        }
       } else if (url === '/api/candidates') {
         try {
-          // Check if we have a user ID
-          if (!userId) {
-            return res.status(400).json({ message: "User ID is required" });
-          }
-          
-          // Get user details
-          const user = await storage.getUser(userId);
-          if (!user || !user.companyId) {
-            return res.status(404).json({ message: "User or company not found" });
-          }
-
           const candidates = await storage.getCandidatesByHRUser(userId, user.companyId);
           return res.status(200).json(candidates);
         } catch (error) {
