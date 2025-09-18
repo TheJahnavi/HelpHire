@@ -150,6 +150,15 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
       return;
     }
 
+    if (!formData.jobDescription.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Job description is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const submitData = {
       ...formData,
       positionsCount: parseInt(formData.positionsCount.toString()) || 1,
@@ -208,13 +217,14 @@ export default function AddJobModal({ job, onClose }: AddJobModalProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="jobDescription">Job Description</Label>
+            <Label htmlFor="jobDescription">Job Description *</Label>
             <Textarea
               id="jobDescription"
               value={formData.jobDescription}
               onChange={(e) => handleInputChange("jobDescription", e.target.value)}
               placeholder="Describe the role, responsibilities, and requirements..."
               rows={4}
+              required
               data-testid="job-description-input"
             />
           </div>

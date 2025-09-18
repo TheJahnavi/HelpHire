@@ -42,19 +42,35 @@ export default function HRDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
+  // In serverless environment, we'll use mock data for now
+  // In a real implementation, you would fetch data with user context
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<{
     jobStats: { total: number; active: number };
     candidateStats: Array<{ status: string; count: number }>;
     pipelineData: Array<{ stage: string; count: number }>;
     chartData: Array<{ month: string; opened: number; filled: number }>;
   }>({
-    queryKey: ["/api/dashboard/stats"],
+    queryKey: ["dashboard-stats"],
+    queryFn: async () => {
+      const response = await fetch('/api/dashboard/stats');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dashboard stats: ${response.statusText}`);
+      }
+      return response.json();
+    },
     retry: false,
     enabled: isAuthenticated, // Only fetch if authenticated
   });
 
   const { data: todos = [], isLoading: todosLoading, error: todosError } = useQuery<any[]>({
-    queryKey: ["/api/todos"],
+    queryKey: ["todos"],
+    queryFn: async () => {
+      const response = await fetch('/api/todos');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch todos: ${response.statusText}`);
+      }
+      return response.json();
+    },
     retry: false,
     enabled: isAuthenticated, // Only fetch if authenticated
   });

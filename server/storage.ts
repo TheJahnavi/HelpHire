@@ -249,8 +249,13 @@ export class DatabaseStorage implements IStorage {
   async deleteJob(id: number): Promise<{ success: boolean; message?: string }> {
     try {
       const database = this.checkDatabase();
-      const result = await database.delete(jobs).where(eq(jobs.id, id));
-      if (result.count > 0) {
+      
+      // First, delete all candidates associated with this job
+      await database.delete(candidates).where(eq(candidates.jobId, id));
+      
+      // Then delete the job itself
+      const result = await database.delete(jobs).where(eq(jobs.id, id)).returning();
+      if (result.length > 0) {
         return { success: true, message: "Job deleted successfully" };
       } else {
         return { success: false, message: "Job not found" };
@@ -265,10 +270,14 @@ export class DatabaseStorage implements IStorage {
   async getCandidatesByCompany(companyId: number): Promise<Candidate[]> {
     try {
       const database = this.checkDatabase();
-      return await database
+      const result = await database
         .select()
         .from(candidates)
-        .where(eq(candidates.companyId, companyId));
+        .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+        .where(eq(jobs.companyId, companyId));
+      
+      // Extract candidates from the join result
+      return result.map(row => row.candidates);
     } catch (error) {
       console.error("Error in getCandidatesByCompany:", error);
       return [];
@@ -278,13 +287,17 @@ export class DatabaseStorage implements IStorage {
   async getCandidatesByHRUser(hrUserId: string, companyId: number): Promise<Candidate[]> {
     try {
       const database = this.checkDatabase();
-      return await database
+      const result = await database
         .select()
         .from(candidates)
+        .innerJoin(jobs, eq(candidates.jobId, jobs.id))
         .where(and(
           eq(candidates.hrHandlingUserId, hrUserId),
-          eq(candidates.companyId, companyId)
+          eq(jobs.companyId, companyId)
         ));
+      
+      // Extract candidates from the join result
+      return result.map(row => row.candidates);
     } catch (error) {
       console.error("Error in getCandidatesByHRUser:", error);
       return [];
@@ -323,8 +336,8 @@ export class DatabaseStorage implements IStorage {
   async deleteCandidate(id: number): Promise<boolean> {
     try {
       const database = this.checkDatabase();
-      const result = await database.delete(candidates).where(eq(candidates.id, id));
-      return result.count > 0;
+      const result = await database.delete(candidates).where(eq(candidates.id, id)).returning();
+      return result.length > 0;
     } catch (error) {
       console.error("Error in deleteCandidate:", error);
       return false;
@@ -492,15 +505,15 @@ export class DatabaseStorage implements IStorage {
       const hrJobs = hrJobsResult[0]?.count || 0;
       
       return {
-        totalJobs,
-        activeJobs,
+        total: totalJobs,
+        active: activeJobs,
         hrJobs,
       };
     } catch (error) {
       console.error("Error in getJobStats:", error);
       return {
-        totalJobs: 0,
-        activeJobs: 0,
+        total: 0,
+        active: 0,
         hrJobs: 0,
       };
     }
@@ -510,11 +523,12 @@ export class DatabaseStorage implements IStorage {
     try {
       const database = this.checkDatabase();
       
-      // Get total candidates for company
+      // Get total candidates for company (through jobs)
       const totalCandidatesResult = await database
         .select({ count: count() })
         .from(candidates)
-        .where(eq(candidates.companyId, companyId));
+        .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+        .where(eq(jobs.companyId, companyId));
       const totalCandidates = totalCandidatesResult[0]?.count || 0;
       
       // Get candidates handled by specific HR
@@ -524,14 +538,15 @@ export class DatabaseStorage implements IStorage {
         .where(eq(candidates.hrHandlingUserId, hrUserId));
       const hrCandidates = hrCandidatesResult[0]?.count || 0;
       
-      // Get candidates by status
+      // Get candidates by status (through jobs)
       const statusStats = await database
         .select({
           status: candidates.status,
           count: count(),
         })
         .from(candidates)
-        .where(eq(candidates.companyId, companyId))
+        .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+        .where(eq(jobs.companyId, companyId))
         .groupBy(candidates.status);
       
       return {
@@ -556,19 +571,16 @@ export class DatabaseStorage implements IStorage {
       // Get candidates with job info for pipeline visualization
       const pipelineData = await database
         .select({
-          candidateId: candidates.id,
-          candidateName: candidates.candidateName,
-          jobId: jobs.id,
-          jobTitle: jobs.jobTitle,
-          status: candidates.status,
-          matchPercentage: candidates.matchPercentage,
+          stage: candidates.status,
+          count: count(),
         })
         .from(candidates)
         .innerJoin(jobs, eq(candidates.jobId, jobs.id))
         .where(and(
-          eq(candidates.companyId, companyId),
+          eq(jobs.companyId, companyId),
           eq(candidates.hrHandlingUserId, hrUserId)
-        ));
+        ))
+        .groupBy(candidates.status);
       
       return pipelineData;
     } catch (error) {
@@ -581,19 +593,21 @@ export class DatabaseStorage implements IStorage {
     try {
       const database = this.checkDatabase();
       
-      // Get monthly candidate additions
+      // Get monthly candidate additions (through jobs)
       const monthlyData = await database
         .select({
-          month: sql<string>`DATE_TRUNC('month', ${candidates.createdAt})`.as('month'),
-          count: count(),
+          month: sql<string>`TO_CHAR(${candidates.createdAt}, 'YYYY-MM')`.as('month'),
+          opened: count(),
+          filled: sql<number>`SUM(CASE WHEN ${candidates.status} = 'hired' THEN 1 ELSE 0 END)`.as('filled'),
         })
         .from(candidates)
+        .innerJoin(jobs, eq(candidates.jobId, jobs.id))
         .where(and(
-          eq(candidates.companyId, companyId),
+          eq(jobs.companyId, companyId),
           eq(candidates.hrHandlingUserId, hrUserId)
         ))
-        .groupBy(sql`DATE_TRUNC('month', ${candidates.createdAt})`)
-        .orderBy(sql`DATE_TRUNC('month', ${candidates.createdAt})`);
+        .groupBy(sql`TO_CHAR(${candidates.createdAt}, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(${candidates.createdAt}, 'YYYY-MM')`);
       
       return monthlyData;
     } catch (error) {

@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Id');
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
@@ -180,6 +180,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.error("Signup error:", error);
           return res.status(500).json({ message: "Failed to create user" });
         }
+      }
+    }
+    
+    // Handle GET requests for specific API endpoints
+    if (method === 'GET') {
+      // For dashboard stats and other protected endpoints, we'll check for user ID in headers
+      const userId = req.headers['x-user-id'] as string;
+      
+      if (url === '/api/dashboard/stats') {
+        // Return mock data for now - in a real implementation, you would fetch real data
+        return res.status(200).json({
+          jobStats: { total: 15, active: 10 },
+          candidateStats: [
+            { status: 'applied', count: 30 },
+            { status: 'interview_scheduled', count: 15 },
+            { status: 'hired', count: 5 },
+            { status: 'rejected', count: 10 }
+          ],
+          pipelineData: [
+            { stage: 'Applied', count: 30 },
+            { stage: 'Resume Reviewed', count: 25 },
+            { stage: 'Interview Scheduled', count: 15 },
+            { stage: 'Technical Round', count: 10 },
+            { stage: 'Final Round', count: 7 },
+            { stage: 'Hired', count: 5 }
+          ],
+          chartData: [
+            { month: 'Jan', opened: 6, filled: 3 },
+            { month: 'Feb', opened: 8, filled: 4 },
+            { month: 'Mar', opened: 7, filled: 2 },
+            { month: 'Apr', opened: 10, filled: 5 },
+            { month: 'May', opened: 11, filled: 4 },
+            { month: 'Jun', opened: 15, filled: 7 }
+          ]
+        });
+      } else if (url === '/api/todos') {
+        // Return mock todos data
+        return res.status(200).json([
+          { id: 1, task: 'Review new candidate applications', isCompleted: false },
+          { id: 2, task: 'Schedule interviews for frontend developers', isCompleted: true },
+          { id: 5, task: 'Follow up with candidates from yesterday', isCompleted: false },
+          { id: 6, task: 'Update hiring pipeline report', isCompleted: false }
+        ]);
+      } else if (url === '/api/notifications') {
+        // Return mock notifications data
+        return res.status(200).json([
+          { id: 1, message: 'New candidate application received', timestamp: '2023-06-15T10:30:00Z', readStatus: false },
+          { id: 4, message: 'Candidate profile updated', timestamp: '2023-06-15T09:15:00Z', readStatus: false },
+          { id: 5, message: 'Interview feedback submitted', timestamp: '2023-06-15T08:45:00Z', readStatus: true }
+        ]);
       }
     }
 

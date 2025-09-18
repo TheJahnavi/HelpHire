@@ -70,20 +70,11 @@ interface ExtractedCandidate {
 
 interface JobMatch {
   candidateId: string;
-  name: string;
-  email: string;
-  matchPercentage: number;
-  "percentage match summary": string;
-  "Strengths:"?: {
-    reason: string;
-    points: number;
-    "experience list": string[];
-  }[];
-  "Areas for Improvement:"?: {
-    reason: string;
-    points: number;
-    gaps: string;
-  }[];
+  candidate_name: string;
+  candidate_email: string;
+  match_percentage: number;
+  strengths: string[];
+  areas_for_improvement: string[];
 }
 
 interface InterviewQuestions {
@@ -115,7 +106,10 @@ export default function Upload() {
   });
 
   // Filter jobs to show only those handled by the logged-in user
-  const jobs = allJobs.filter(job => job.hrHandlingUserId === user?.id);
+  // In development mode, show all jobs for the company
+  const jobs = process.env.NODE_ENV === 'development' 
+    ? allJobs 
+    : allJobs.filter(job => job.hrHandlingUserId === user?.id);
 
   // Step 1: Upload and extract data
   const uploadMutation = useMutation({
@@ -131,7 +125,11 @@ export default function Upload() {
       });
     },
     onSuccess: (data) => {
-      const candidatesWithIds = data.candidates.map((candidate: any, index: number) => ({
+      console.log("Upload response data:", data); // Add logging to debug
+      
+      // Check if we have candidates in the response
+      const candidatesArray = data.candidates || [];
+      const candidatesWithIds = candidatesArray.map((candidate: any, index: number) => ({
         ...candidate,
         id: candidate.id || `temp_${Date.now()}_${index}`,
       }));
@@ -139,10 +137,32 @@ export default function Upload() {
       setExtractedCandidates(candidatesWithIds);
       setCurrentStep("extracted");
       
-      toast({
-        title: "Success",
-        description: `Extracted data from ${candidatesWithIds.length} resumes`,
-      });
+      // Show appropriate message based on number of candidates extracted
+      if (candidatesWithIds.length > 0) {
+        toast({
+          title: "Success",
+          description: `Extracted data from ${candidatesWithIds.length} resumes`,
+        });
+      } else if (data.errors && data.errors.length > 0) {
+        // Check if it's an API key error
+        const hasAuthError = data.errors.some((error: string) => 
+          error.includes("API key") || error.includes("401") || error.includes("authentication")
+        );
+        
+        toast({
+          title: hasAuthError ? "API Configuration Error" : "Extraction Failed",
+          description: hasAuthError 
+            ? "Invalid API key or authentication failed. Please check your API configuration." 
+            : "Files uploaded but no candidate data was extracted. Please check file formats and content.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Partial Success",
+          description: "Files uploaded but no candidate data was extracted. Please check file formats and content.",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: any) => {
       console.error("Upload error:", error);
@@ -235,11 +255,11 @@ export default function Upload() {
 
         return {
           id: candidate.id,
-          name: candidate.name,
-          email: candidate.email,
+          name: match.candidate_name || candidate.name,
+          email: match.candidate_email || candidate.email,
           skills: candidate.skills,
           experience: candidate.experience,
-          matchPercentage: match.matchPercentage,
+          matchPercentage: match.match_percentage,
         };
       });
 
@@ -571,46 +591,42 @@ export default function Upload() {
                               data-testid={`checkbox-candidate-${match.candidateId}`}
                             />
                             <div>
-                              <h3 className="font-semibold">{candidate.name}</h3>
-                              <p className="text-sm text-muted-foreground">{candidate.email}</p>
+                              <h3 className="font-semibold">{match.candidate_name || candidate.name}</h3>
+                              <p className="text-sm text-muted-foreground">{match.candidate_email || candidate.email}</p>
                             </div>
                           </div>
                           <div className="text-right">
                             <Badge
-                              variant={match.matchPercentage >= 70 ? "default" : match.matchPercentage >= 50 ? "secondary" : "destructive"}
+                              variant={match.match_percentage >= 70 ? "default" : match.match_percentage >= 50 ? "secondary" : "destructive"}
                             >
-                              {match.matchPercentage}% Match
+                              {match.match_percentage}% Match
                             </Badge>
                           </div>
                         </div>
-                        
                         <div className="mt-4 space-y-2">
-                          <p className="text-sm">{match["percentage match summary"]}</p>
-                          
-                          {match["Strengths:"] && match["Strengths:"].length > 0 && (
-                            <div>
-                              <h4 className="font-medium text-sm text-green-600 mb-1">Strengths:</h4>
-                              {match["Strengths:"].map((strength, index) => (
-                                <div key={index} className="text-xs pl-2 border-l-2 border-green-200">
-                                  <strong>{strength.reason}</strong> (+{strength.points} points)
-                                  <div className="text-muted-foreground">
-                                    Technologies: {strength["experience list"].join(", ")}
+                          <div className="space-y-2">
+                            {match.strengths && match.strengths.length > 0 && (
+                              <div>
+                                <h4 className="font-medium text-sm text-green-600 mb-1">Strengths:</h4>
+                                {match.strengths.map((strength, index) => (
+                                  <div key={index} className="text-xs pl-2 border-l-2 border-green-200">
+                                    {strength}
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {match["Areas for Improvement:"] && match["Areas for Improvement:"].length > 0 && (
-                            <div>
-                              <h4 className="font-medium text-sm text-red-600 mb-1">Areas for Improvement:</h4>
-                              {match["Areas for Improvement:"].map((area, index) => (
-                                <div key={index} className="text-xs pl-2 border-l-2 border-red-200">
-                                  <strong>{area.reason}</strong> ({area.points} points): {area.gaps}
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )}
+                            
+                            {match.areas_for_improvement && match.areas_for_improvement.length > 0 && (
+                              <div>
+                                <h4 className="font-medium text-sm text-red-600 mb-1">Areas for Improvement:</h4>
+                                {match.areas_for_improvement.map((area, index) => (
+                                  <div key={index} className="text-xs pl-2 border-l-2 border-red-200">
+                                    {area}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
 
                           {/* Interview Questions Link */}
                           <div className="pt-2">

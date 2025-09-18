@@ -1,16 +1,16 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.ts";
 import bcrypt from "bcryptjs";
 import session from "express-session";
-import connectPg from "connect-pg-simple";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import mammoth from "mammoth";
-import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini";
+import * as fs from "fs";
+import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini.ts";
+import connectPg from "connect-pg-simple";
+import { createServer, type Server } from "http";
+import * as mammoth from "mammoth";
 
 // Setup multer for file uploads
 const upload = multer({
@@ -55,6 +55,21 @@ function setupSession(app: Express) {
 
 // Authentication middleware
 const isAuthenticated = (req: any, res: any, next: any) => {
+  // In development environment, allow access for testing
+  if (process.env.NODE_ENV === 'development') {
+    // For development, we'll mock a user session
+    if (!req.session.user) {
+      req.session.user = {
+        id: 'test-user-id',
+        email: 'test@example.com',
+        name: 'Test User',
+        role: 'HR',
+        companyId: null  // We'll set this properly in the route handlers
+      };
+    }
+    return next();
+  }
+  
   if (req.session && req.session.user) {
     return next();
   }
@@ -264,21 +279,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/dashboard/stats', isAuthenticated, async (req: any, res) => {
     try {
       const sessionUser = req.session.user;
-      const user = await storage.getUser(sessionUser.id);
       
-      if (!user || !user.companyId) {
-        return res.status(404).json({ message: "User or company not found" });
+      // In development, ensure we have proper user context
+      let user = await storage.getUser(sessionUser.id);
+      let companyId: number;
+      
+      if (process.env.NODE_ENV === 'development') {
+        // If user doesn't exist in storage, create a mock one for development
+        if (!user) {
+          // First check if user exists by email
+          user = await storage.getUserByEmail("test@example.com");
+          if (!user) {
+            // Create mock company if needed
+            const mockCompany = await storage.getCompanyByName("Test Company");
+            if (mockCompany) {
+              companyId = mockCompany.id;
+            } else {
+              const newCompany = await storage.createCompany({ companyName: "Test Company" });
+              companyId = newCompany.id;
+            }
+            
+            // Create mock user
+            user = await storage.createUser({
+              id: 'test-user-id',
+              email: "test@example.com",
+              name: "Test User",
+              role: "HR",
+              companyId: companyId,
+              accountStatus: 'active',
+            });
+          } else {
+            // User exists, check if they have a company
+            if (!user.companyId) {
+              const mockCompany = await storage.getCompanyByName("Test Company");
+              if (mockCompany) {
+                companyId = mockCompany.id;
+              } else {
+                const newCompany = await storage.createCompany({ companyName: "Test Company" });
+                companyId = newCompany.id;
+              }
+              // Update user with company ID
+              user = await storage.updateUser(user.id, { companyId });
+            } else {
+              companyId = user.companyId;
+            }
+          }
+          // Update session user with company ID
+          sessionUser.companyId = companyId;
+          sessionUser.id = user.id;
+        } else {
+          // User exists in storage
+          if (!user.companyId) {
+            const mockCompany = await storage.getCompanyByName("Test Company");
+            if (mockCompany) {
+              companyId = mockCompany.id;
+            } else {
+              const newCompany = await storage.createCompany({ companyName: "Test Company" });
+              companyId = newCompany.id;
+            }
+            // Update user with company ID
+            user = await storage.updateUser(user.id, { companyId });
+          } else {
+            companyId = user.companyId;
+          }
+        }
+      } else {
+        // Production mode
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        if (!user.companyId) {
+          return res.status(404).json({ message: "Company not found for user" });
+        }
+        companyId = user.companyId;
       }
 
       // Get comprehensive dashboard data filtered by HR user
-      const jobStats = await storage.getJobStats(user.companyId, sessionUser.id);
-      const candidateStats = await storage.getCandidateStats(user.companyId, sessionUser.id);
-      const pipelineData = await storage.getPipelineData(user.companyId, sessionUser.id);
-      const chartData = await storage.getChartData(user.companyId, sessionUser.id);
+      const jobStats = await storage.getJobStats(companyId, sessionUser.id);
+      const candidateStats = await storage.getCandidateStats(companyId, sessionUser.id);
+      const pipelineData = await storage.getPipelineData(companyId, sessionUser.id);
+      const chartData = await storage.getChartData(companyId, sessionUser.id);
 
       res.json({
         jobStats,
-        candidateStats,
+        candidateStats: candidateStats.statusStats || [],
         pipelineData,
         chartData
       });
@@ -317,13 +401,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/jobs', isAuthenticated, async (req: any, res) => {
     try {
       const sessionUser = req.session.user;
-      const user = await storage.getUser(sessionUser.id);
       
-      if (!user || !user.companyId) {
-        return res.status(404).json({ message: "User or company not found" });
+      // In development, ensure we have proper user context
+      let user = await storage.getUser(sessionUser.id);
+      let companyId: number;
+      
+      if (process.env.NODE_ENV === 'development') {
+        // If user doesn't exist in storage, create a mock one for development
+        if (!user) {
+          // First check if user exists by email
+          user = await storage.getUserByEmail("test@example.com");
+          if (!user) {
+            // Create mock company if needed
+            const mockCompany = await storage.getCompanyByName("Test Company");
+            if (mockCompany) {
+              companyId = mockCompany.id;
+            } else {
+              const newCompany = await storage.createCompany({ companyName: "Test Company" });
+              companyId = newCompany.id;
+            }
+            
+            // Create mock user
+            user = await storage.createUser({
+              id: 'test-user-id',
+              email: "test@example.com",
+              name: "Test User",
+              role: "HR",
+              companyId: companyId,
+              accountStatus: 'active',
+            });
+          } else {
+            // User exists, check if they have a company
+            if (!user.companyId) {
+              const mockCompany = await storage.getCompanyByName("Test Company");
+              if (mockCompany) {
+                companyId = mockCompany.id;
+              } else {
+                const newCompany = await storage.createCompany({ companyName: "Test Company" });
+                companyId = newCompany.id;
+              }
+              // Update user with company ID
+              user = await storage.updateUser(user.id, { companyId });
+            } else {
+              companyId = user.companyId;
+            }
+          }
+          // Update session user with company ID
+          sessionUser.companyId = companyId;
+          sessionUser.id = user.id;
+        } else {
+          // User exists in storage
+          if (!user.companyId) {
+            const mockCompany = await storage.getCompanyByName("Test Company");
+            if (mockCompany) {
+              companyId = mockCompany.id;
+            } else {
+              const newCompany = await storage.createCompany({ companyName: "Test Company" });
+              companyId = newCompany.id;
+            }
+            // Update user with company ID
+            user = await storage.updateUser(user.id, { companyId });
+          } else {
+            companyId = user.companyId;
+          }
+        }
+      } else {
+        // Production mode
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        if (!user.companyId) {
+          return res.status(404).json({ message: "Company not found for user" });
+        }
+        companyId = user.companyId;
       }
 
-      const jobs = await storage.getJobsByHRUser(user.companyId, sessionUser.id);
+      // For development mode, we want to show all jobs for the company regardless of hrHandlingUserId
+      // This is to ensure that jobs created by any user in development are visible
+      let jobs: any[] = [];
+      if (process.env.NODE_ENV === 'development') {
+        jobs = await storage.getJobsByCompany(companyId);
+      } else {
+        jobs = await storage.getJobsByHRUser(companyId, sessionUser.id);
+      }
+      
       res.json(jobs);
     } catch (error) {
       console.error("Error fetching jobs:", error);
@@ -343,10 +504,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Request body:", req.body);
       console.log("User details:", { userId: sessionUser.id, companyId: user.companyId });
       
+      // Validate required fields
+      if (!req.body.jobTitle || !req.body.jobDescription) {
+        return res.status(400).json({ message: "Job title and description are required" });
+      }
+      
       const jobData = insertJobSchema.parse({
         ...req.body,
         addedByUserId: sessionUser.id,
         companyId: user.companyId,
+        hrHandlingUserId: sessionUser.id, // Also set HR handling user
       });
       
       console.log("Parsed job data:", jobData);
@@ -363,10 +530,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       if (error instanceof z.ZodError) {
         console.error("Job creation validation error:", error.errors);
-        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+        return res.status(400).json({ 
+          message: "Invalid input", 
+          errors: error.errors,
+          details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ')
+        });
       }
       console.error("Error creating job:", error);
-      res.status(500).json({ message: "Failed to create job" });
+      // Provide more specific error message
+      if (error instanceof Error) {
+        return res.status(500).json({ 
+          message: "Failed to create job", 
+          error: error.message,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+      }
+      res.status(500).json({ 
+        message: "Failed to create job",
+        error: "Unknown error occurred"
+      });
     }
   });
 
@@ -702,7 +884,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error("Error in resume upload:", error);
-      res.status(500).json({ message: "Failed to process resumes" });
+      // Provide more specific error message
+      if (error instanceof Error) {
+        return res.status(500).json({ 
+          message: "Failed to process resumes", 
+          error: error.message,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+      }
+      res.status(500).json({ 
+        message: "Failed to process resumes",
+        error: "Unknown error occurred"
+      });
     }
   });
 
@@ -736,15 +929,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`Error matching candidate ${candidate.id}:`, error);
           matchResults.push({
             candidateId: candidate.id,
-            name: candidate.name,
-            matchPercentage: 0,
-            summary: "Error calculating match",
-            strengthsBehindReasons: [],
-            lagBehindReasons: [{
-              reason: "Processing error occurred",
-              points: -100,
-              gaps: "Unable to analyze candidate data"
-            }]
+            candidate_name: candidate.name,
+            candidate_email: candidate.email,
+            match_percentage: 0,
+            strengths: [],
+            areas_for_improvement: ["Error calculating match"]
           });
         }
       }
@@ -781,13 +970,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add candidates to database  
-  app.post('/api/candidates/add', async (req: any, res) => {
+  app.post('/api/candidates/add', isAuthenticated, async (req: any, res) => {
     try {
       const { candidates, jobId } = req.body;
+      const sessionUser = req.session.user;
+      
+      // In development, ensure we have a proper user in the database
+      let actualUserId = sessionUser.id;
+      if (process.env.NODE_ENV === 'development' && sessionUser.id === 'test-user-id') {
+        // Check if the test user exists in the database
+        const existingUser = await storage.getUser('test-user-id');
+        if (!existingUser) {
+          // Create mock company if needed
+          let companyId: number;
+          const mockCompany = await storage.getCompanyByName("Test Company");
+          if (mockCompany) {
+            companyId = mockCompany.id;
+          } else {
+            const newCompany = await storage.createCompany({ companyName: "Test Company" });
+            companyId = newCompany.id;
+          }
+          
+          // Create the test user in the database
+          await storage.createUser({
+            id: 'test-user-id',
+            email: "test@example.com",
+            name: "Test User",
+            role: "HR",
+            companyId: companyId,
+            accountStatus: 'active',
+          });
+        }
+        actualUserId = 'test-user-id';
+      }
       
       console.log("=== DEBUG: Adding Candidates to Database ===");
       console.log("Number of candidates:", candidates.length);
       console.log("Job ID:", jobId);
+      console.log("User ID:", actualUserId);
       console.log("Candidates data:", JSON.stringify(candidates, null, 2));
 
       const addedCandidates = [];
@@ -804,7 +1024,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             match_percentage: candidate.matchPercentage || null,
             status: 'resume_reviewed',
             resume_url: `resume_${candidate.id}.txt`,
-            hr_handling_user_id: 'hr-001',
+            hr_handling_user_id: actualUserId,
             report_link: null,
             interview_link: null,
             created_at: new Date()
@@ -818,7 +1038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             resumeUrl: `resume_${candidate.id}.txt`,
             status: 'resume_reviewed',
             jobId: parseInt(jobId),
-            hrHandlingUserId: 'hr-001',
+            hrHandlingUserId: actualUserId,
             matchPercentage: candidate.matchPercentage || null
           });
 
@@ -853,6 +1073,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error adding candidates:", error);
       res.status(500).json({ message: "Failed to add candidates" });
+    }
+  });
+
+  // Endpoint to check database and create dummy data
+  app.get('/api/setup/dummy-data', async (req: any, res) => {
+    try {
+      // Check if we have existing data
+      const userCount = await storage.getUsersByCompany(1);
+      const companyCount = await storage.getCompanies();
+      const jobCount = await storage.getJobsByCompany(1);
+      const candidateCount = await storage.getCandidatesByCompany(1);
+      
+      const hasData = userCount.length > 0 || companyCount.length > 0 || jobCount.length > 0 || candidateCount.length > 0;
+      
+      if (hasData) {
+        return res.json({ 
+          message: "Database already has data", 
+          counts: {
+            users: userCount.length,
+            companies: companyCount.length,
+            jobs: jobCount.length,
+            candidates: candidateCount.length
+          }
+        });
+      }
+      
+      // Create dummy data
+      // Create a company
+      const company = await storage.createCompany({
+        companyName: 'TechCorp',
+        logoUrl: 'https://example.com/logo.png'
+      });
+      
+      // Create users
+      const hrUser = await storage.createUser({
+        email: 'hr@techcorp.com',
+        name: 'HR Manager',
+        role: 'HR',
+        companyId: company.id,
+        passwordHash: '$2a$10$8K1p/a0dhrxiowP.dnkgNORTWgdEDHn5L2/xjpEWuC.QQv4rKO9jO' // bcrypt hash for 'password'
+      });
+      
+      // Create jobs
+      const job1 = await storage.createJob({
+        jobTitle: 'Frontend Developer',
+        companyId: company.id,
+        hrHandlingUserId: hrUser.id,
+        addedByUserId: hrUser.id,
+        jobDescription: 'We are looking for a skilled Frontend Developer to join our team.',
+        skills: ['React', 'JavaScript', 'CSS', 'HTML'],
+        experience: '3+ years',
+        positionsCount: 2,
+        jobStatus: 'active'
+      });
+      
+      const job2 = await storage.createJob({
+        jobTitle: 'Backend Engineer',
+        companyId: company.id,
+        hrHandlingUserId: hrUser.id,
+        addedByUserId: hrUser.id,
+        jobDescription: 'We are looking for a Backend Engineer to work on our cloud infrastructure.',
+        skills: ['Node.js', 'Python', 'AWS', 'Docker'],
+        experience: '5+ years',
+        positionsCount: 1,
+        jobStatus: 'active'
+      });
+      
+      // Create candidates
+      const candidate1 = await storage.createCandidate({
+        candidateName: 'John Doe',
+        email: 'john.doe@example.com',
+        jobId: job1.id,
+        hrHandlingUserId: hrUser.id,
+        candidateSkills: ['React', 'JavaScript', 'CSS'],
+        candidateExperience: 4,
+        matchPercentage: 85,
+        status: 'interview_scheduled',
+        resumeUrl: 'https://example.com/resumes/john_doe.pdf'
+      });
+      
+      const candidate2 = await storage.createCandidate({
+        candidateName: 'Jane Smith',
+        email: 'jane.smith@example.com',
+        jobId: job1.id,
+        hrHandlingUserId: hrUser.id,
+        candidateSkills: ['React', 'TypeScript', 'Redux'],
+        candidateExperience: 3,
+        matchPercentage: 92,
+        status: 'resume_reviewed',
+        resumeUrl: 'https://example.com/resumes/jane_smith.pdf'
+      });
+      
+      const candidate3 = await storage.createCandidate({
+        candidateName: 'Mike Johnson',
+        email: 'mike.johnson@example.com',
+        jobId: job2.id,
+        hrHandlingUserId: hrUser.id,
+        candidateSkills: ['Node.js', 'Python', 'AWS'],
+        candidateExperience: 6,
+        matchPercentage: 78,
+        status: 'hired',
+        resumeUrl: 'https://example.com/resumes/mike_johnson.pdf'
+      });
+      
+      // Create notifications
+      await storage.createNotification({
+        userId: hrUser.id,
+        message: 'New candidate John Doe applied for Frontend Developer position'
+      });
+      
+      await storage.createNotification({
+        userId: hrUser.id,
+        message: 'Interview scheduled with Jane Smith for tomorrow'
+      });
+      
+      // Create todos
+      await storage.createTodo({
+        userId: hrUser.id,
+        task: 'Review resumes for Frontend Developer position'
+      });
+      
+      await storage.createTodo({
+        userId: hrUser.id,
+        task: 'Schedule interview with Jane Smith'
+      });
+      
+      res.json({ 
+        message: "Dummy data created successfully",
+        data: {
+          company,
+          hrUser,
+          jobs: [job1, job2],
+          candidates: [candidate1, candidate2, candidate3]
+        }
+      });
+    } catch (error) {
+      console.error("Error creating dummy data:", error);
+      res.status(500).json({ message: "Failed to create dummy data", error: (error as Error).message });
     }
   });
 

@@ -41,7 +41,10 @@ function Router() {
       <Route path="/signup" component={Signup} />
       
       {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+        <>
+          <Route path="/" component={Landing} />
+          <Route component={NotFound} />
+        </>
       ) : (
         <>
           {/* Role-based dashboard routing */}
@@ -60,10 +63,11 @@ function Router() {
           <Route path="/hr/upload" component={Upload} />
           <Route path="/hr/profile" component={Profile} />
           <Route path="/hr/notifications" component={NotificationsPage} />
+          
+          {/* This should be the last route to catch all unmatched paths */}
+          <Route component={NotFound} />
         </>
       )}
-      {/* This should be the last route to catch all unmatched paths */}
-      <Route component={NotFound} />
     </Switch>
   );
 }

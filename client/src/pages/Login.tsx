@@ -77,18 +77,20 @@ export default function Login() {
         description: "Welcome back!",
       });
 
-      // Store user data in localStorage for Vercel deployment
+      // Store user data in localStorage
       localStorage.setItem("user", JSON.stringify(response.user));
       
-      // Redirect based on role
-      if (data.role === "Super Admin") {
-        window.location.href = "/super-admin/dashboard";
-      } else if (data.role === "Company Admin") {
-        window.location.href = "/company-admin/dashboard";
-      } else {
-        // For HR users, redirect to the main dashboard
-        window.location.href = "/hr/dashboard";
-      }
+      // Redirect based on role after a short delay to ensure state is updated
+      setTimeout(() => {
+        if (data.role === "Super Admin") {
+          window.location.href = "/super-admin/dashboard";
+        } else if (data.role === "Company Admin") {
+          window.location.href = "/company-admin/dashboard";
+        } else {
+          // For HR users, redirect to the main dashboard
+          window.location.href = "/hr/dashboard";
+        }
+      }, 100);
     } catch (error: any) {
       toast({
         title: "Login failed",
