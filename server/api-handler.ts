@@ -3,28 +3,10 @@ import { storage } from "./storage.js";
 import bcrypt from "bcryptjs";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema } from "../shared/schema.js";
 import { z } from "zod";
-import multer from "multer";
 import path from "path";
 import * as fs from "fs";
 import * as mammoth from "mammoth";
 import { extractResumeData, calculateJobMatch } from "./gemini.js";
-
-// Setup multer for file uploads
-const upload = multer({
-  dest: '/tmp/uploads/',
-  fileFilter: (req, file, cb) => {
-    const allowedExtensions = ['.pdf', '.docx', '.txt'];
-    const fileExtension = path.extname(file.originalname).toLowerCase();
-    if (allowedExtensions.includes(fileExtension)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF, DOCX, and TXT files are allowed'));
-    }
-  },
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  }
-});
 
 // Add debugging at the top of the file
 console.log('api-handler.ts: Starting import process');
@@ -56,31 +38,55 @@ const modulesLoaded = Promise.all([
 });
 
 // Helper function to parse resume files
-async function parseResumeFile(file: Express.Multer.File): Promise<string> {
-  const fileExtension = path.extname(file.originalname).toLowerCase();
+async function parseResumeFile(file: any): Promise<string> {
+  const fileExtension = path.extname(file.filename).toLowerCase();
   
   try {
     if (fileExtension === '.pdf') {
       // Parse PDF file using dynamic import
       const pdfModule = await import('pdf-parse');
       const pdf = 'default' in pdfModule ? pdfModule.default : pdfModule;
-      const dataBuffer = fs.readFileSync(file.path);
-      const pdfData = await pdf(dataBuffer);
+      const pdfData = await pdf(file);
       return pdfData.text;
     } else if (fileExtension === '.docx') {
       // Parse DOCX file
-      const result = await mammoth.extractRawText({ path: file.path });
+      const result = await mammoth.extractRawText({ buffer: file });
       return result.value;
     } else if (fileExtension === '.txt') {
       // Parse TXT file
-      return fs.readFileSync(file.path, 'utf-8');
+      return file.toString();
     } else {
       throw new Error(`Unsupported file type: ${fileExtension}`);
     }
   } catch (parseError) {
-    console.error(`Failed to parse ${file.originalname}:`, parseError);
-    throw new Error(`Could not extract text from ${file.originalname}: ${parseError}`);
+    console.error(`Failed to parse ${file.filename}:`, parseError);
+    throw new Error(`Could not extract text from ${file.filename}: ${parseError}`);
   }
+}
+
+// Helper function to extract files from Vercel request
+async function extractFilesFromRequest(req: VercelRequest): Promise<any[]> {
+  // In Vercel serverless functions, files are in req.files
+  if (req.files && Array.isArray(req.files)) {
+    return req.files;
+  }
+  
+  // If files are in a property, extract them
+  if (req.files) {
+    const files: any[] = [];
+    for (const key in req.files) {
+      const fileOrFiles = req.files[key];
+      if (Array.isArray(fileOrFiles)) {
+        files.push(...fileOrFiles);
+      } else {
+        files.push(fileOrFiles);
+      }
+    }
+    return files;
+  }
+  
+  // If no files found, return empty array
+  return [];
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -431,14 +437,78 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle resume upload and analysis
     else if (url === '/api/upload/resumes' && method === 'POST') {
       try {
-        // Note: In Vercel serverless functions, file upload handling is limited
-        // We'll need to handle this differently in the frontend
-        return res.status(501).json({ message: "Resume upload not implemented in this handler" });
+        console.log("Handling resume upload request");
+        console.log("Request files:", req.files);
+        console.log("Request body:", req.body);
+        
+        // Extract files from the request
+        const files = await extractFilesFromRequest(req);
+        console.log("Extracted files:", files?.length || 0);
+        
+        if (!files || files.length === 0) {
+          console.log("No files received in upload request");
+          return res.status(400).json({ message: "No files uploaded" });
+        }
+
+        const extractedCandidates: any[] = [];
+        const processingErrors: string[] = [];
+
+        for (const file of files) {
+          try {
+            console.log(`Processing file: ${file.filename || file.originalFilename} (${file.type || file.mimetype})`);
+            
+            // Parse the actual file content
+            const resumeText = await parseResumeFile(file);
+            
+            if (!resumeText || resumeText.trim().length < 50) {
+              const errorMsg = `Insufficient text content extracted from ${file.filename || file.originalFilename} (${resumeText?.length || 0} characters)`;
+              console.log(errorMsg);
+              throw new Error(errorMsg);
+            }
+
+            console.log(`Extracted ${resumeText.length} characters from ${file.filename || file.originalFilename}`);
+            
+            // Use Gemini AI to extract candidate data from the actual resume text
+            const extractedData = await extractResumeData(resumeText);
+            const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Validate that we got meaningful data
+            if (!extractedData.name || !extractedData.email) {
+              const errorMsg = `Failed to extract valid candidate data from ${file.filename || file.originalFilename}`;
+              console.log(errorMsg);
+              throw new Error(errorMsg);
+            }
+            
+            extractedCandidates.push({
+              ...extractedData,
+              id: candidateId
+            });
+
+            console.log(`Successfully processed ${file.filename || file.originalFilename} - Extracted: ${extractedData.name}`);
+
+          } catch (error) {
+            const errorMessage = `Error processing file ${file.filename || file.originalFilename}: ${error}`;
+            console.error(errorMessage);
+            processingErrors.push(errorMessage);
+          }
+        }
+
+        // Return results with any processing errors
+        const response: any = { candidates: extractedCandidates };
+        if (processingErrors.length > 0) {
+          response.errors = processingErrors;
+          response.message = `Processed ${extractedCandidates.length} of ${files.length} files successfully`;
+        } else if (extractedCandidates.length === 0) {
+          response.message = "No candidate data could be extracted from the uploaded files";
+        }
+
+        console.log(`Upload response: ${extractedCandidates.length} candidates extracted, ${processingErrors.length} errors`);
+        return res.status(200).json(response);
       } catch (error) {
         console.error("Error in resume upload:", error);
         return res.status(500).json({ 
           message: "Failed to process resumes",
-          error: "Unknown error occurred"
+          error: error instanceof Error ? error.message : "Unknown error occurred"
         });
       }
     }
