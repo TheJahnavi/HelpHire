@@ -17,13 +17,6 @@
       }
     },
     {
-      "src": "server/test-env.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": "{shared/**,server/**,package.json}"
-      }
-    },
-    {
       "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
@@ -35,10 +28,6 @@
     {
       "src": "/api/(.*)",
       "dest": "/server/api-handler.ts"
-    },
-    {
-      "src": "/test-env",
-      "dest": "/server/test-env.ts"
     },
     {
       "src": "/(.*)",
