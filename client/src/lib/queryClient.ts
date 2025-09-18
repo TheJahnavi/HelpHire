@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { getCurrentUser } from "@/lib/authUtils";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -17,10 +18,14 @@ export async function apiRequest(
 ): Promise<any> {
   const isFormData = options.body instanceof FormData;
   
+  // Get current user to include user ID in headers
+  const currentUser = getCurrentUser();
+  
   const res = await fetch(url, {
     method: options.method,
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      'x-user-id': currentUser?.id || '',
       ...options.headers,
     },
     body: isFormData ? (options.body as FormData) : (options.body ? JSON.stringify(options.body) : undefined),
@@ -37,8 +42,14 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Get current user to include user ID in headers
+    const currentUser = getCurrentUser();
+    
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",
+      headers: {
+        'x-user-id': currentUser?.id || ''
+      }
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

@@ -75,12 +75,20 @@ export default function Candidates() {
 
   const { data: candidates = [], isLoading: candidatesLoading } = useQuery<any[]>({
     queryKey: ["/api/candidates"],
+    queryFn: async () => {
+      return await apiRequest('/api/candidates', { method: 'GET' });
+    },
     retry: false,
+    enabled: isAuthenticated && !!user?.id,
   });
 
   const { data: jobs = [] } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
+    queryFn: async () => {
+      return await apiRequest('/api/jobs', { method: 'GET' });
+    },
     retry: false,
+    enabled: isAuthenticated && !!user?.id,
   });
 
   // Status update mutation with proper validation

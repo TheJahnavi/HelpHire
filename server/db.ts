@@ -35,17 +35,11 @@ function sanitizeDatabaseUrl(url: string): string {
   return sanitized;
 }
 
-// Only throw error if we're not in a Vercel environment
-if (!process.env.DATABASE_URL && process.env.VERCEL !== '1') {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
-
 // Create pool with error handling
 let pool: Pool | undefined;
 let db: NeonDatabase<typeof schema> | null = null;
 
+// Always initialize database connection regardless of environment
 try {
   if (process.env.DATABASE_URL) {
     // Log the database URL (without sensitive information) for debugging
@@ -62,6 +56,7 @@ try {
     
     pool = new Pool({ connectionString: sanitizedUrl });
     db = drizzle({ client: pool, schema });
+    console.log('Database connection initialized successfully');
   } else {
     console.warn("DATABASE_URL not set - database functionality will be limited");
     db = null;

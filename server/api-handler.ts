@@ -17,7 +17,7 @@ let storage: any = null;
 let db: any = null;
 
 // Load modules asynchronously with .js extensions
-Promise.all([
+const modulesLoaded = Promise.all([
   import('./db.js').then(module => {
     db = module;
     console.log('api-handler.ts: Successfully imported db');
@@ -34,8 +34,8 @@ Promise.all([
   })
 ]).then(() => {
   console.log('api-handler.ts: All modules loaded');
-}).catch(error => {
-  console.error('api-handler.ts: Error loading modules:', error);
+  console.log('api-handler.ts: Storage available:', !!storage);
+  console.log('api-handler.ts: DB available:', !!db);
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -71,12 +71,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Wait for storage to be loaded if it's still loading
-    let attempts = 0;
-    while (!storage && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-      attempts++;
-    }
+    // Wait for modules to be loaded
+    await modulesLoaded;
 
     // Check if storage is available
     if (!storage) {

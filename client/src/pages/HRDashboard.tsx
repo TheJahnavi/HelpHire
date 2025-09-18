@@ -8,6 +8,7 @@ import { Link } from "wouter";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { apiRequest } from "@/lib/queryClient";
 
 // Helper function to get stage colors
 const getStageColor = (stage: string) => {
@@ -42,8 +43,7 @@ export default function HRDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  // In serverless environment, we'll use mock data for now
-  // In a real implementation, you would fetch data with user context
+  // Fetch dashboard stats with user context
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<{
     jobStats: { total: number; active: number };
     candidateStats: Array<{ status: string; count: number }>;
@@ -52,27 +52,19 @@ export default function HRDashboard() {
   }>({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const response = await fetch('/api/dashboard/stats');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch dashboard stats: ${response.statusText}`);
-      }
-      return response.json();
+      return await apiRequest('/api/dashboard/stats', { method: 'GET' });
     },
     retry: false,
-    enabled: isAuthenticated, // Only fetch if authenticated
+    enabled: isAuthenticated && !!user?.id, // Only fetch if authenticated and user ID is available
   });
 
   const { data: todos = [], isLoading: todosLoading, error: todosError } = useQuery<any[]>({
     queryKey: ["todos"],
     queryFn: async () => {
-      const response = await fetch('/api/todos');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch todos: ${response.statusText}`);
-      }
-      return response.json();
+      return await apiRequest('/api/todos', { method: 'GET' });
     },
     retry: false,
-    enabled: isAuthenticated, // Only fetch if authenticated
+    enabled: isAuthenticated && !!user?.id, // Only fetch if authenticated and user ID is available
   });
 
   // Handle unauthorized errors
@@ -111,7 +103,7 @@ export default function HRDashboard() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user?.id) {
     return null;
   }
 

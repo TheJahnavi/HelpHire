@@ -58,9 +58,9 @@ export default function Login() {
   // Pre-fill HR credentials when HR role is selected
   useEffect(() => {
     if (selectedRole === "HR") {
-      form.setValue("email", "hr@techcorp.com");
+      form.setValue("email", "hr1@techcorp.com");
       form.setValue("password", "hrpassword123");
-      form.setValue("company", "TechCorp");
+      form.setValue("company", "TechCorp Inc");
     }
   }, [selectedRole, form]);
 

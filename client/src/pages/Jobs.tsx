@@ -65,7 +65,11 @@ export default function Jobs() {
 
   const { data: jobs = [], isLoading: jobsLoading, error } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
+    queryFn: async () => {
+      return await apiRequest('/api/jobs', { method: 'GET' });
+    },
     retry: false,
+    enabled: isAuthenticated && !!user?.id,
   });
 
   const deleteJobMutation = useMutation({
