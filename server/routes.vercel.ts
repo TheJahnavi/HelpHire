@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "./storage.ts";
 import bcrypt from "bcryptjs";
 import session from "express-session";
-import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "@shared/schema";
+import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "../shared/schema.js";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
