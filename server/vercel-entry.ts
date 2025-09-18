@@ -35,18 +35,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // API routes - explicitly handle them before the catch-all
-// For all API routes, return 404 to let Vercel route them to the proper handler
-// But in development, we let the Vite proxy handle them
-if (process.env.NODE_ENV !== 'development') {
-  app.all('/api/*', (req, res) => {
-    // This will be handled by the serverless functions
-    res.status(404).json({ 
-      message: "API route should be handled by Vercel serverless functions",
-      method: req.method,
-      url: req.url
-    });
-  });
-}
+app.get('/api/*', (req, res) => {
+  // This will be handled by the serverless functions
+  res.status(404).json({ message: "API route not found in vercel-entry" });
+});
 
 // Serve index.html for all non-API routes (for client-side routing)
 app.get("*", (req, res) => {
@@ -67,7 +59,7 @@ app.get("*", (req, res) => {
       staticPath
     });
   }
-  
+
   console.log('Serving index.html from:', indexPath);
   res.sendFile(indexPath);
 });
