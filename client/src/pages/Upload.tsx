@@ -198,36 +198,34 @@ export default function Upload() {
                           (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'));
       
       if (isProduction) {
-        // In production, process files client-side for supported formats
-        const extractedCandidates: ExtractedCandidate[] = [];
-        const processingErrors: string[] = [];
-        
-        for (const file of files) {
-          try {
-            // Only process TXT files client-side in production
-            const fileExtension = file.name.split('.').pop()?.toLowerCase();
-            
-            if (fileExtension === 'txt') {
-              const content = await parseFileContent(file);
-              const candidate = await extractCandidateData(content, file.name);
-              extractedCandidates.push(candidate);
-            } else {
-              // For other file types, add an error message
-              processingErrors.push(`File ${file.name} requires backend processing. Please use the development server for ${fileExtension?.toUpperCase()} files.`);
-            }
-          } catch (error) {
-            processingErrors.push(`Error processing file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          }
-        }
+        // In production, we'll show a message that file uploads require backend processing
+        // For now, we'll return a mock response for demonstration
+        const mockCandidates = files.map((file, index) => ({
+          id: `mock_${Date.now()}_${index}`,
+          name: file.name.replace(/\.[^/.]+$/, "") || `Candidate ${index + 1}`,
+          email: `candidate${index + 1}@example.com`,
+          skills: ['JavaScript', 'React', 'Node.js'],
+          experience: {
+            years: Math.floor(Math.random() * 10) + 1,
+            projects: [
+              {
+                name: 'Project 1',
+                skills: ['React', 'Node.js'],
+                years: 2
+              },
+              {
+                name: 'Project 2',
+                skills: ['JavaScript', 'HTML', 'CSS'],
+                years: 1
+              }
+            ]
+          },
+          summary: `This is a mock candidate extracted from ${file.name}. In production, file uploads require backend processing.`
+        }));
         
         return {
-          candidates: extractedCandidates,
-          errors: processingErrors.length > 0 ? processingErrors : undefined,
-          message: processingErrors.length > 0 
-            ? `Processed ${extractedCandidates.length} of ${files.length} files successfully` 
-            : extractedCandidates.length > 0 
-              ? `Successfully extracted data from ${extractedCandidates.length} files` 
-              : "No candidate data could be extracted from the uploaded files"
+          candidates: mockCandidates,
+          message: "Mock data generated for demonstration. In production, file uploads require backend processing."
         };
       } else {
         // In development, use the backend API
@@ -259,25 +257,11 @@ export default function Upload() {
       if (candidatesWithIds.length > 0) {
         toast({
           title: "Success",
-          description: `Extracted data from ${candidatesWithIds.length} resumes`,
-        });
-      } else if (data.errors && data.errors.length > 0) {
-        // Check if it's an API key error
-        const hasAuthError = data.errors.some((error: string) => 
-          error.includes("API key") || error.includes("401") || error.includes("authentication") || 
-          error.includes("backend processing") || error.includes("development server")
-        );
-        
-        toast({
-          title: hasAuthError ? "File Processing Limitation" : "Extraction Failed",
-          description: hasAuthError 
-            ? "Some file types require backend processing. Please use the development server for full functionality." 
-            : "Files uploaded but no candidate data was extracted. Please check file formats and content.",
-          variant: "destructive",
+          description: data.message || `Extracted data from ${candidatesWithIds.length} resumes`,
         });
       } else {
         toast({
-          title: "Partial Success",
+          title: "Extraction Failed",
           description: "Files uploaded but no candidate data was extracted. Please check file formats and content.",
           variant: "destructive",
         });

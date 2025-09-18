@@ -3,39 +3,7 @@ import { storage } from "./storage.js";
 import bcrypt from "bcryptjs";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema } from "../shared/schema.js";
 import { z } from "zod";
-import path from "path";
-import * as fs from "fs";
-import * as mammoth from "mammoth";
-import { extractResumeData, calculateJobMatch } from "./gemini.js";
-
-// Add debugging at the top of the file
-console.log('api-handler.ts: Starting import process');
-
-// Log environment variables for debugging
-console.log('api-handler.ts: Environment variables:');
-console.log('  VERCEL:', process.env.VERCEL);
-console.log('  DATABASE_URL set:', !!process.env.DATABASE_URL);
-if (process.env.DATABASE_URL) {
-  console.log('  DATABASE_URL length:', process.env.DATABASE_URL.length);
-  console.log('  DATABASE_URL starts with:', process.env.DATABASE_URL.substring(0, 50));
-}
-
-// Use dynamic async imports for ES modules with .js extensions
-let db: any = null;
-
-// Load modules asynchronously with .js extensions
-const modulesLoaded = Promise.all([
-  import('./db.js').then(module => {
-    db = module;
-    console.log('api-handler.ts: Successfully imported db');
-  }).catch(error => {
-    console.error('api-handler.ts: Failed to import db:', error);
-    db = null;
-  })
-]).then(() => {
-  console.log('api-handler.ts: All modules loaded');
-  console.log('api-handler.ts: DB available:', !!db);
-});
+import { extractResumeData, calculateJobMatch, generateInterviewQuestions } from "./gemini.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers
@@ -49,13 +17,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Log environment info for debugging
-    console.log('Environment info:', {
-      VERCEL: process.env.VERCEL,
-      DATABASE_URL_SET: !!process.env.DATABASE_URL,
-      NODE_ENV: process.env.NODE_ENV
-    });
-
     const url = req.url || '/';
     const method = req.method || 'GET';
     const userId = req.headers['x-user-id'] as string;
@@ -68,17 +29,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         timestamp: new Date().toISOString(),
         DATABASE_URL_SET: !!process.env.DATABASE_URL,
         VERCEL_ENV: process.env.VERCEL
-      });
-    }
-
-    // Wait for modules to be loaded
-    await modulesLoaded;
-
-    // Check if storage is available
-    if (!storage) {
-      console.error('Storage module not available');
-      return res.status(500).json({ 
-        message: 'Internal server error - storage module not available'
       });
     }
 
@@ -95,9 +45,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(401).json({ message: "Invalid credentials" });
           }
 
-          // Import bcrypt dynamically
-          const bcrypt = (await import('bcryptjs')).default;
-          
           // Check password
           const isValidPassword = await bcrypt.compare(password, user.passwordHash);
           if (!isValidPassword) {
@@ -143,9 +90,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ message: "User already exists with this email" });
           }
 
-          // Import bcrypt dynamically
-          const bcrypt = (await import('bcryptjs')).default;
-          
           // Hash password
           const passwordHash = await bcrypt.hash(password, 10);
           
@@ -201,9 +145,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url === '/api/jobs' && method === 'POST') {
       try {
-        console.log("Request body:", req.body);
-        console.log("User details:", { userId: user.id, companyId: user.companyId });
-        
         // Validate required fields
         if (!req.body.jobTitle || !req.body.jobDescription) {
           return res.status(400).json({ message: "Job title and description are required" });
@@ -213,10 +154,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ...req.body,
           addedByUserId: user.id,
           companyId: user.companyId,
-          hrHandlingUserId: user.id, // Also set HR handling user
+          hrHandlingUserId: user.id,
         });
-        
-        console.log("Parsed job data:", jobData);
         
         const job = await storage.createJob(jobData);
 
@@ -237,17 +176,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
         console.error("Error creating job:", error);
-        // Provide more specific error message
-        if (error instanceof Error) {
-          return res.status(500).json({ 
-            message: "Failed to create job", 
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-          });
-        }
         return res.status(500).json({ 
           message: "Failed to create job",
-          error: "Unknown error occurred"
+          error: error instanceof Error ? error.message : "Unknown error occurred"
         });
       }
     } else if (url.startsWith('/api/jobs/') && method === 'PUT') {
@@ -370,44 +301,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
-    // Handle file upload for candidates
-    else if (url === '/api/candidates/upload' && method === 'POST') {
+    // Handle dashboard stats
+    else if (url === '/api/dashboard/stats' && method === 'GET') {
       try {
-        // Note: In Vercel serverless functions, file upload handling is limited
-        // We'll need to handle this differently in the frontend
-        return res.status(501).json({ message: "File upload not implemented in this handler" });
+        // Get comprehensive dashboard data filtered by HR user
+        const jobStats = await storage.getJobStats(user.companyId, userId);
+        const candidateStats = await storage.getCandidateStats(user.companyId, userId);
+        const pipelineData = await storage.getPipelineData(user.companyId, userId);
+        const chartData = await storage.getChartData(user.companyId, userId);
+
+        return res.status(200).json({
+          jobStats,
+          candidateStats: candidateStats.statusStats || [],
+          pipelineData,
+          chartData
+        });
       } catch (error) {
-        console.error("Error uploading candidate:", error);
-        return res.status(500).json({ message: "Failed to upload candidate" });
+        console.error("Error fetching dashboard stats:", error);
+        return res.status(500).json({ message: "Failed to fetch dashboard stats" });
       }
     }
     
-    // Handle resume upload and analysis
-    else if (url === '/api/upload/resumes' && method === 'POST') {
+    // Handle todos
+    else if (url === '/api/todos' && method === 'GET') {
       try {
-        console.log("Handling resume upload request");
-        console.log("Request headers:", req.headers);
-        console.log("Content-Type:", req.headers['content-type']);
-        console.log("Request body:", req.body);
-        console.log("Request files:", (req as any).files);
+        const todos = await storage.getTodosByUser(userId);
+        return res.status(200).json(todos);
+      } catch (error) {
+        console.error("Error fetching todos:", error);
+        return res.status(500).json({ message: "Failed to fetch todos" });
+      }
+    } else if (url === '/api/todos' && method === 'POST') {
+      try {
+        const todoData = insertTodoSchema.parse({
+          ...req.body,
+          userId: userId,
+        });
         
-        // In Vercel serverless functions, we can't directly access files from multipart form data
-        // The request body will contain the file data if it's been parsed by Vercel
-        // For now, we'll return a more informative error message
-        return res.status(501).json({ 
-          message: "Resume upload not supported in production deployment",
-          details: "Vercel serverless functions do not support direct file upload handling. Please use the development server for file uploads, or implement a client-side file processing solution."
-        });
+        const todo = await storage.createTodo(todoData);
+        return res.status(200).json(todo);
       } catch (error) {
-        console.error("Error in resume upload:", error);
-        return res.status(500).json({ 
-          message: "Failed to process resumes",
-          error: error instanceof Error ? error.message : "Unknown error occurred"
-        });
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ message: "Invalid input", errors: error.errors });
+        }
+        console.error("Error creating todo:", error);
+        return res.status(500).json({ message: "Failed to create todo" });
+      }
+    } else if (url.startsWith('/api/todos/') && method === 'PUT') {
+      try {
+        const id = parseInt(url.split('/')[3]);
+        const updateData = req.body;
+        
+        const todo = await storage.updateTodo(id, updateData);
+        return res.status(200).json(todo);
+      } catch (error) {
+        console.error("Error updating todo:", error);
+        return res.status(500).json({ message: "Failed to update todo" });
       }
     }
     
-    // Handle job matching endpoint
+    // Handle notifications
+    else if (url === '/api/notifications' && method === 'GET') {
+      try {
+        const notifications = await storage.getNotificationsByUser(userId);
+        return res.status(200).json(notifications);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+        return res.status(500).json({ message: "Failed to fetch notifications" });
+      }
+    } else if (url.startsWith('/api/notifications/') && method === 'PUT') {
+      try {
+        if (url.endsWith('/read-all')) {
+          // Mark all notifications as read
+          await storage.markAllNotificationsAsRead(userId);
+          return res.status(200).json({ success: true, message: "All notifications marked as read" });
+        } else if (url.includes('/read')) {
+          // Mark specific notification as read
+          const id = parseInt(url.split('/')[3]);
+          const notification = await storage.markNotificationAsRead(id);
+          return res.status(200).json(notification);
+        }
+      } catch (error) {
+        console.error("Error updating notifications:", error);
+        return res.status(500).json({ message: "Failed to update notifications" });
+      }
+    }
+    
+    // Handle AI matching endpoint
     else if (url === '/api/ai/match-candidates' && method === 'POST') {
       try {
         const { candidates, jobId } = req.body;
@@ -452,42 +432,104 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
-    // Handle GET requests for specific API endpoints
-    if (method === 'GET') {
-      if (url === '/api/dashboard/stats') {
-        try {
-          // Get comprehensive dashboard data filtered by HR user
-          const jobStats = await storage.getJobStats(user.companyId, userId);
-          const candidateStats = await storage.getCandidateStats(user.companyId, userId);
-          const pipelineData = await storage.getPipelineData(user.companyId, userId);
-          const chartData = await storage.getChartData(user.companyId, userId);
+    // Handle interview questions generation
+    else if (url === '/api/ai/generate-questions' && method === 'POST') {
+      try {
+        const { candidate, jobId } = req.body;
+        
+        const job = await storage.getJob(jobId);
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
+        }
 
-          return res.status(200).json({
-            jobStats,
-            candidateStats: candidateStats.statusStats || [],
-            pipelineData,
-            chartData
-          });
-        } catch (error) {
-          console.error("Error fetching dashboard stats:", error);
-          return res.status(500).json({ message: "Failed to fetch dashboard stats" });
+        const questions = await generateInterviewQuestions(
+          candidate,
+          job.jobTitle,
+          job.jobDescription || '',
+          job.skills || []
+        );
+
+        return res.status(200).json({ questions });
+      } catch (error) {
+        console.error("Error generating interview questions:", error);
+        return res.status(500).json({ message: "Failed to generate interview questions" });
+      }
+    }
+    
+    // Handle adding candidates to database
+    else if (url === '/api/candidates/add' && method === 'POST') {
+      try {
+        const { candidates, jobId } = req.body;
+        
+        console.log("=== DEBUG: Adding Candidates to Database ===");
+        console.log("Number of candidates:", candidates.length);
+        console.log("Job ID:", jobId);
+        console.log("User ID:", userId);
+        console.log("Candidates data:", JSON.stringify(candidates, null, 2));
+
+        const addedCandidates = [];
+        for (const candidate of candidates) {
+          try {
+            console.log(`\n--- Processing candidate: ${candidate.name} ---`);
+            console.log("Candidate data structure:", {
+              id: candidate.id,
+              candidate_name: candidate.name,
+              email: candidate.email,
+              job_id: parseInt(jobId),
+              candidate_skills: candidate.skills,
+              candidate_experience: JSON.stringify(candidate.experience),
+              match_percentage: candidate.matchPercentage || null,
+              status: 'resume_reviewed',
+              resume_url: `resume_${candidate.id}.txt`,
+              hr_handling_user_id: userId,
+              report_link: null,
+              interview_link: null,
+              created_at: new Date()
+            });
+
+            const candidateData = insertCandidateSchema.parse({
+              candidateName: candidate.name,
+              email: candidate.email,
+              candidateSkills: candidate.skills,
+              candidateExperience: candidate.experience.years,
+              resumeUrl: `resume_${candidate.id}.txt`,
+              status: 'resume_reviewed',
+              jobId: parseInt(jobId),
+              hrHandlingUserId: userId,
+              matchPercentage: candidate.matchPercentage || null
+            });
+
+            const addedCandidate = await storage.createCandidate(candidateData);
+            addedCandidates.push(addedCandidate);
+            
+            console.log(`✓ Successfully added candidate: ${candidate.name}`);
+          } catch (error) {
+            console.error(`✗ Error adding candidate ${candidate.name}:`, error);
+          }
         }
-      } else if (url === '/api/todos') {
-        try {
-          const todos = await storage.getTodosByUser(userId);
-          return res.status(200).json(todos);
-        } catch (error) {
-          console.error("Error fetching todos:", error);
-          return res.status(500).json({ message: "Failed to fetch todos" });
+
+        console.log(`\n=== FINAL RESULT: Added ${addedCandidates.length}/${candidates.length} candidates ===`);
+
+        // Create notification for all company users about new candidates
+        if (addedCandidates.length > 0) {
+          // Get company ID from the job
+          const job = await storage.getJob(parseInt(jobId));
+          if (job && job.companyId) {
+            const candidateNames = addedCandidates.map(c => c.candidateName).join(', ');
+            await storage.createNotificationForCompany(
+              job.companyId,
+              `${addedCandidates.length} new candidate${addedCandidates.length > 1 ? 's' : ''} added: ${candidateNames}`
+            );
+          }
         }
-      } else if (url === '/api/notifications') {
-        try {
-          const notifications = await storage.getNotificationsByUser(userId);
-          return res.status(200).json(notifications);
-        } catch (error) {
-          console.error("Error fetching notifications:", error);
-          return res.status(500).json({ message: "Failed to fetch notifications" });
-        }
+
+        return res.status(200).json({ 
+          message: `Successfully added ${addedCandidates.length} candidates to database`,
+          candidates: addedCandidates 
+        });
+      } catch (error) {
+        console.error("Error adding candidates:", error);
+        return res.status(500).json({ message: "Failed to add candidates" });
       }
     }
 
