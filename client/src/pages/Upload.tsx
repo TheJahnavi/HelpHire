@@ -217,7 +217,18 @@ export default function Upload() {
       };
     } catch (error) {
       console.error("Error extracting candidate data:", error);
-      throw new Error(`Failed to extract candidate data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Check if this is a fallback response
+      if (error instanceof Error && error.message.includes('fallback')) {
+        toast({
+          title: "Notice",
+          description: "AI service unavailable, using fallback extraction method. Results may be limited.",
+          variant: "default",
+        });
+        // Still return the data even if it's from fallback
+        throw error;
+      } else {
+        throw new Error(`Failed to extract candidate data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   };
 
@@ -352,6 +363,19 @@ export default function Upload() {
         // Find the corresponding candidate by id
         const candidate = extractedCandidates.find(c => c.id === match.candidateId);
         
+        // Check if this is a fallback response
+        const isFallback = match.areas_for_improvement.some((area: string) => 
+          area.includes('fallback') || area.includes('AI service unavailability')
+        );
+        
+        if (isFallback) {
+          toast({
+            title: "Notice",
+            description: "AI service unavailable for matching, using fallback method. Results may be limited.",
+            variant: "default",
+          });
+        }
+        
         // Ensure we have all required fields
         return {
           candidateId: match.candidateId || (candidate?.id || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`),
@@ -423,11 +447,26 @@ export default function Upload() {
         return;
       }
       
+      // Check if this is a fallback response by looking at the questions content
+      const questions = data.questions;
+      const isFallback = 
+        (Array.isArray(questions.technical) && questions.technical.some((q: string) => q.includes('fallback'))) ||
+        (Array.isArray(questions.behavioral) && questions.behavioral.some((q: string) => q.includes('fallback'))) ||
+        (Array.isArray(questions.jobSpecific) && questions.jobSpecific.some((q: string) => q.includes('fallback')));
+      
+      if (isFallback) {
+        toast({
+          title: "Notice",
+          description: "AI service unavailable for question generation, using fallback method. Questions may be generic.",
+          variant: "default",
+        });
+      }
+      
       // Ensure all question categories are properly structured
       const validatedQuestions = {
-        technical: Array.isArray(data.questions.technical) ? data.questions.technical : [],
-        behavioral: Array.isArray(data.questions.behavioral) ? data.questions.behavioral : [],
-        jobSpecific: Array.isArray(data.questions.jobSpecific) ? data.questions.jobSpecific : []
+        technical: Array.isArray(questions.technical) ? questions.technical : [],
+        behavioral: Array.isArray(questions.behavioral) ? questions.behavioral : [],
+        jobSpecific: Array.isArray(questions.jobSpecific) ? questions.jobSpecific : []
       };
       
       setShowInterviewQuestions(prev => ({

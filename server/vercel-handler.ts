@@ -249,7 +249,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({ questions });
         } catch (error) {
           console.error("Error generating interview questions:", error);
-          return res.status(500).json({ message: "Failed to generate interview questions" });
+          return res.status(500).json({ 
+            message: "Failed to generate interview questions",
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
         }
       } else if (url === '/api/ai/extract-resume') {
         try {

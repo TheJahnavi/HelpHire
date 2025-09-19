@@ -61,6 +61,13 @@ export interface InterviewQuestions {
 
 export async function extractResumeData(resumeText: string): Promise<ExtractedCandidate> {
   try {
+    // Check if API key is properly configured
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openrouter-api-key-here') {
+      console.warn('OpenAI API key not configured, using fallback extraction method');
+      // Fallback to a simple extraction method when API key is not available
+      return fallbackExtractResumeData(resumeText);
+    }
+
     const prompt = `
 EXTRACT ONLY THE DATA PRESENT IN THE RESUME. Do not imagine or create any information that is not explicitly stated in the document.
 -----
@@ -196,14 +203,74 @@ Return only valid JSON, no additional text.
       total_experience: parsedData.total_experience || "",
       summary: parsedData.summary || "No summary available"
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error extracting resume data:", error);
-    throw new Error(`Failed to extract resume data: ${error}`);
+    // Provide more specific error information
+    if (error.status === 401) {
+      console.warn('Authentication failed with OpenAI API, using fallback extraction method');
+      // Fallback to a simple extraction method when API authentication fails
+      return fallbackExtractResumeData(resumeText);
+    } else if (error.status === 403) {
+      throw new Error(`Access forbidden to OpenAI API. Please check your API key permissions. Error: ${error.message}`);
+    } else if (error.status === 429) {
+      throw new Error(`Rate limit exceeded for OpenAI API. Please try again later. Error: ${error.message}`);
+    } else if (error.status === 500) {
+      throw new Error(`OpenAI API server error. Please try again later. Error: ${error.message}`);
+    } else {
+      throw new Error(`Failed to extract resume data: ${error.message || error}`);
+    }
   }
+}
+
+// Fallback method for extracting resume data when AI is not available
+function fallbackExtractResumeData(resumeText: string): ExtractedCandidate {
+  // Simple regex-based extraction as a fallback
+  const nameMatch = resumeText.match(/(?:^|\n)([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})(?=\n)/);
+  const emailMatch = resumeText.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+  
+  // Extract skills (simple keyword matching)
+  const skillKeywords = [
+    'JavaScript', 'Python', 'Java', 'C++', 'React', 'Angular', 'Vue', 'Node.js', 
+    'Express', 'MongoDB', 'SQL', 'PostgreSQL', 'MySQL', 'Docker', 'Kubernetes',
+    'AWS', 'Azure', 'GCP', 'Git', 'HTML', 'CSS', 'TypeScript', 'PHP', 'Ruby',
+    'Swift', 'Kotlin', 'Go', 'Rust', 'Scala', 'Haskell', 'Elixir', 'Clojure'
+  ];
+  
+  const skills = skillKeywords.filter(skill => 
+    resumeText.toLowerCase().includes(skill.toLowerCase())
+  );
+  
+  // Extract experience years (simple pattern matching)
+  const experienceMatches = resumeText.match(/(\d+)\s*(?:year|yr)s?/gi);
+  let totalExperience = "";
+  if (experienceMatches && experienceMatches.length > 0) {
+    // Find the highest number as total experience
+    const years = experienceMatches.map(match => parseInt(match)).filter(num => !isNaN(num));
+    if (years.length > 0) {
+      totalExperience = `${Math.max(...years)} years`;
+    }
+  }
+  
+  return {
+    name: nameMatch ? nameMatch[1].trim() : "Unknown Candidate",
+    email: emailMatch ? emailMatch[0] : "",
+    portfolio_link: [],
+    skills: skills,
+    experience: [],
+    total_experience: totalExperience,
+    summary: "Extracted using fallback method due to AI service unavailability."
+  };
 }
 
 export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle: string, jobSkills: string[], jobDescription: string, jobExperience?: string, jobNotes?: string): Promise<JobMatchResult> {
   try {
+    // Check if API key is properly configured
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openrouter-api-key-here') {
+      console.warn('OpenAI API key not configured, using fallback matching method');
+      // Fallback to a simple matching method when API key is not available
+      return fallbackCalculateJobMatch(candidate, jobTitle, jobSkills, jobDescription);
+    }
+
     const prompt = `
 ### **Prompt for Agent 2: Resume-to-Job Match Analysis**
 
@@ -307,10 +374,69 @@ Return only valid JSON, no additional text.
       strengths: Array.isArray(parsedData.strengths) ? parsedData.strengths : [],
       areas_for_improvement: Array.isArray(parsedData.areas_for_improvement) ? parsedData.areas_for_improvement : []
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error calculating job match:", error);
-    throw new Error(`Failed to calculate job match: ${error}`);
+    // Provide more specific error information
+    if (error.status === 401) {
+      console.warn('Authentication failed with OpenAI API, using fallback matching method');
+      // Fallback to a simple matching method when API authentication fails
+      return fallbackCalculateJobMatch(candidate, jobTitle, jobSkills, jobDescription);
+    } else if (error.status === 403) {
+      throw new Error(`Access forbidden to OpenAI API. Please check your API key permissions. Error: ${error.message}`);
+    } else if (error.status === 429) {
+      throw new Error(`Rate limit exceeded for OpenAI API. Please try again later. Error: ${error.message}`);
+    } else if (error.status === 500) {
+      throw new Error(`OpenAI API server error. Please try again later. Error: ${error.message}`);
+    } else {
+      throw new Error(`Failed to calculate job match: ${error.message || error}`);
+    }
   }
+}
+
+// Fallback method for calculating job match when AI is not available
+function fallbackCalculateJobMatch(
+  candidate: ExtractedCandidate, 
+  jobTitle: string, 
+  jobSkills: string[], 
+  jobDescription: string
+): JobMatchResult {
+  // Simple skill matching algorithm as a fallback
+  const candidateSkills = candidate.skills.map(s => s.toLowerCase());
+  const requiredSkills = jobSkills.map(s => s.toLowerCase());
+  
+  // Calculate skill match percentage
+  const matchingSkills = requiredSkills.filter(skill => 
+    candidateSkills.some(candidateSkill => 
+      candidateSkill.includes(skill) || skill.includes(candidateSkill)
+    )
+  );
+  
+  const skillMatchPercentage = requiredSkills.length > 0 
+    ? Math.round((matchingSkills.length / requiredSkills.length) * 100) 
+    : 0;
+  
+  // Calculate experience match (simple comparison)
+  const candidateExperienceYears = parseInt(candidate.total_experience) || 0;
+  const jobExperienceMatch = jobDescription.toLowerCase().includes('experience') ? 70 : 50;
+  
+  // Combined match percentage
+  const matchPercentage = Math.round((skillMatchPercentage + jobExperienceMatch) / 2);
+  
+  return {
+    candidate_name: candidate.name,
+    candidate_email: candidate.email,
+    match_percentage: matchPercentage,
+    strengths: [
+      `Skills match: ${matchingSkills.length} out of ${requiredSkills.length} required skills`,
+      `Total experience: ${candidate.total_experience || 'Not specified'}`,
+      `Relevant portfolio links: ${candidate.portfolio_link.length > 0 ? 'Yes' : 'No'}`
+    ],
+    areas_for_improvement: [
+      "Detailed analysis requires AI processing",
+      "Experience level assessment limited without AI",
+      "Specific skill gap analysis not available in fallback mode"
+    ]
+  };
 }
 
 export async function generateInterviewQuestions(
@@ -320,6 +446,13 @@ export async function generateInterviewQuestions(
   requiredSkills: string[]
 ): Promise<InterviewQuestions> {
   try {
+    // Check if API key is properly configured
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openrouter-api-key-here') {
+      console.warn('OpenAI API key not configured, using fallback question generation method');
+      // Fallback to a simple question generation method when API key is not available
+      return fallbackGenerateInterviewQuestions(candidate, jobTitle, jobDescription, requiredSkills);
+    }
+
     const prompt = `
 ### **Prompt for Agent 3: Interview Question Generation**
 
@@ -424,8 +557,60 @@ Return only valid JSON, no additional text.
       behavioral: Array.isArray(parsedData.behavioral_questions) ? parsedData.behavioral_questions : [],
       jobSpecific: Array.isArray(parsedData.job_specific_questions) ? parsedData.job_specific_questions : []
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating interview questions:", error);
-    throw new Error(`Failed to generate interview questions: ${error}`);
+    // Provide more specific error information
+    if (error.status === 401) {
+      console.warn('Authentication failed with OpenAI API, using fallback question generation method');
+      // Fallback to a simple question generation method when API authentication fails
+      return fallbackGenerateInterviewQuestions(candidate, jobTitle, jobDescription, requiredSkills);
+    } else if (error.status === 403) {
+      throw new Error(`Access forbidden to OpenAI API. Please check your API key permissions. Error: ${error.message}`);
+    } else if (error.status === 429) {
+      throw new Error(`Rate limit exceeded for OpenAI API. Please try again later. Error: ${error.message}`);
+    } else if (error.status === 500) {
+      throw new Error(`OpenAI API server error. Please try again later. Error: ${error.message}`);
+    } else {
+      throw new Error(`Failed to generate interview questions: ${error.message || error}`);
+    }
   }
+}
+
+// Fallback method for generating interview questions when AI is not available
+function fallbackGenerateInterviewQuestions(
+  candidate: ExtractedCandidate,
+  jobTitle: string,
+  jobDescription: string,
+  requiredSkills: string[]
+): InterviewQuestions {
+  // Generate generic questions based on candidate data and job requirements
+  const technicalQuestions = [
+    `What experience do you have with ${requiredSkills.slice(0, 3).join(', ')}?`,
+    "Describe a challenging technical problem you solved in your previous role.",
+    "How do you stay updated with new technologies and best practices?",
+    "Walk me through your approach to debugging a complex issue.",
+    "What development tools and environments are you most comfortable with?"
+  ];
+
+  const behavioralQuestions = [
+    "Tell me about a time you had to work with a difficult team member.",
+    "Describe a situation where you had to meet a tight deadline.",
+    "How do you handle feedback and criticism of your work?",
+    "Tell me about a time you had to learn a new technology quickly.",
+    "Describe a situation where you had to make a difficult decision."
+  ];
+
+  const jobSpecificQuestions = [
+    `What interests you most about the ${jobTitle} position?`,
+    "How do you see yourself contributing to our team in the first 90 days?",
+    "What challenges do you anticipate in this role, and how would you address them?",
+    "How do your previous experiences prepare you for this position?",
+    "What questions do you have about our company or the role?"
+  ];
+
+  return {
+    technical: technicalQuestions,
+    behavioral: behavioralQuestions,
+    jobSpecific: jobSpecificQuestions
+  };
 }
