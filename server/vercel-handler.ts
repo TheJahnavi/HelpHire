@@ -162,20 +162,154 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
-    // Require user ID for all other endpoints
-    if (!userId) {
+    // Handle AI endpoints that don't require authentication
+    if ((url === '/api/ai/match-candidates' || url === '/api/ai/generate-questions' || url === '/api/ai/extract-resume') && method === 'POST') {
+      // These endpoints don't require user authentication, handle them directly
+      if (url === '/api/ai/match-candidates') {
+        try {
+          const { candidates, jobId } = req.body;
+          
+          const job = await storage.getJob(jobId);
+          if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+          }
+
+          const matchResults = [];
+          for (const candidate of candidates) {
+            try {
+              const matchResult = await calculateJobMatch(
+                candidate,
+                job.jobTitle,
+                job.skills || [],
+                job.jobDescription || '',
+                job.experience || '',
+                job.note || ''
+              );
+              
+              // Validate that we got a proper match result
+              if (!matchResult || typeof matchResult !== 'object') {
+                const errorMsg = `Failed to get valid match result for candidate ${candidate.name}`;
+                throw new Error(errorMsg);
+              }
+              
+              // Ensure all required fields are present
+              const validatedMatchResult = {
+                candidateId: candidate.id,
+                candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
+                candidate_email: matchResult.candidate_email || candidate.email || "",
+                match_percentage: matchResult.match_percentage || 0,
+                strengths: Array.isArray(matchResult.strengths) ? matchResult.strengths : [],
+                areas_for_improvement: Array.isArray(matchResult.areas_for_improvement) ? matchResult.areas_for_improvement : []
+              };
+              
+              matchResults.push(validatedMatchResult);
+            } catch (matchError) {
+              console.error(`Error matching candidate ${candidate.id}:`, matchError);
+              matchResults.push({
+                candidateId: candidate.id,
+                candidate_name: candidate.name || "Unknown",
+                candidate_email: candidate.email || "",
+                match_percentage: 0,
+                strengths: [],
+                areas_for_improvement: ["Error calculating match: " + (matchError instanceof Error ? matchError.message : 'Unknown error')]
+              });
+            }
+          }
+
+          return res.status(200).json({ matches: matchResults });
+        } catch (error) {
+          console.error("Error in candidate matching:", error);
+          return res.status(500).json({ 
+            message: "Failed to match candidates",
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
+      } else if (url === '/api/ai/generate-questions') {
+        try {
+          const { candidate, jobId } = req.body;
+          
+          const job = await storage.getJob(jobId);
+          if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+          }
+
+          const questions = await generateInterviewQuestions(
+            candidate,
+            job.jobTitle,
+            job.jobDescription || '',
+            job.skills || []
+          );
+          
+          // Validate that we got proper questions
+          if (!questions || typeof questions !== 'object') {
+            const errorMsg = `Failed to generate valid interview questions`;
+            throw new Error(errorMsg);
+          }
+
+          return res.status(200).json({ questions });
+        } catch (error) {
+          console.error("Error generating interview questions:", error);
+          return res.status(500).json({ message: "Failed to generate interview questions" });
+        }
+      } else if (url === '/api/ai/extract-resume') {
+        try {
+          const { resumeText, filename } = req.body;
+          
+          if (!resumeText) {
+            return res.status(400).json({ message: "Resume text is required" });
+          }
+
+          // Use the extractResumeData function to extract candidate data from the resume text
+          const extractedData = await extractResumeData(resumeText);
+          
+          // Validate that we got meaningful data
+          if (!extractedData || !extractedData.name) {
+            return res.status(400).json({ message: "Failed to extract valid candidate data from resume" });
+          }
+          
+          // Ensure all required fields are present
+          const validatedExtractedData = {
+            name: extractedData.name || "Unknown",
+            email: extractedData.email || "",
+            portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
+            skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+            experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+            total_experience: extractedData.total_experience || "",
+            summary: extractedData.summary || "No summary available"
+          };
+          
+          return res.status(200).json(validatedExtractedData);
+        } catch (error) {
+          console.error("Error extracting resume data:", error);
+          return res.status(500).json({ 
+            message: "Failed to extract resume data",
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
+      }
+    }
+    
+    // Require user ID for all other endpoints EXCEPT AI endpoints
+    // AI endpoints are already handled above
+    if (!userId && !((url === '/api/ai/match-candidates' || url === '/api/ai/generate-questions' || url === '/api/ai/extract-resume') && method === 'POST')) {
       return res.status(400).json({ message: "User ID is required" });
     }
     
-    // Get user details
-    const user = await storage.getUser(userId);
-    if (!user || !user.companyId) {
-      return res.status(404).json({ message: "User or company not found" });
+    // Get user details (only if user ID is required for this endpoint)
+    let user = null;
+    if (userId && !((url === '/api/ai/match-candidates' || url === '/api/ai/generate-questions' || url === '/api/ai/extract-resume') && method === 'POST')) {
+      user = await storage.getUser(userId);
+      if (!user || !user.companyId) {
+        return res.status(404).json({ message: "User or company not found" });
+      }
     }
     
     // Handle job routes
     if (url === '/api/jobs' && method === 'GET') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const jobs = await storage.getJobsByHRUser(user.companyId, userId);
         return res.status(200).json(jobs);
       } catch (error) {
@@ -184,6 +318,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url === '/api/jobs' && method === 'POST') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         // Validate required fields
         if (!req.body.jobTitle || !req.body.jobDescription) {
           return res.status(400).json({ message: "Job title and description are required" });
@@ -222,6 +359,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url.startsWith('/api/jobs/') && method === 'PUT') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const id = parseInt(url.split('/')[3]);
         const updateData = req.body;
         
@@ -244,6 +384,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url.startsWith('/api/jobs/') && method === 'DELETE') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const id = parseInt(url.split('/')[3]);
         
         // First, get the job to ensure we can create a proper notification
@@ -273,6 +416,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle candidate routes
     else if (url === '/api/candidates' && method === 'GET') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const candidates = await storage.getCandidatesByHRUser(userId, user.companyId);
         return res.status(200).json(candidates);
       } catch (error) {
@@ -281,6 +427,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url === '/api/candidates' && method === 'POST') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const candidateData = insertCandidateSchema.parse({
           ...req.body,
           hrHandlingUserId: userId,
@@ -297,6 +446,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url.startsWith('/api/candidates/') && method === 'PUT') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const id = parseInt(url.split('/')[3]);
         const updateData = req.body;
         
@@ -326,6 +478,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url.startsWith('/api/candidates/') && method === 'DELETE') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const id = parseInt(url.split('/')[3]);
         
         const deleted = await storage.deleteCandidate(id);
@@ -343,6 +498,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle dashboard stats
     else if (url === '/api/dashboard/stats' && method === 'GET') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         // Get comprehensive dashboard data filtered by HR user
         const jobStats = await storage.getJobStats(user.companyId, userId);
         const candidateStats = await storage.getCandidateStats(user.companyId, userId);
@@ -364,6 +522,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle todos
     else if (url === '/api/todos' && method === 'GET') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const todos = await storage.getTodosByUser(userId);
         return res.status(200).json(todos);
       } catch (error) {
@@ -372,6 +533,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url === '/api/todos' && method === 'POST') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const todoData = insertTodoSchema.parse({
           ...req.body,
           userId: userId,
@@ -388,6 +552,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url.startsWith('/api/todos/') && method === 'PUT') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const id = parseInt(url.split('/')[3]);
         const updateData = req.body;
         
@@ -402,6 +569,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle notifications
     else if (url === '/api/notifications' && method === 'GET') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const notifications = await storage.getNotificationsByUser(userId);
         return res.status(200).json(notifications);
       } catch (error) {
@@ -410,6 +580,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url.startsWith('/api/notifications/') && method === 'PUT') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         if (url.endsWith('/read-all')) {
           // Mark all notifications as read
           await storage.markAllNotificationsAsRead(userId);
@@ -423,136 +596,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (error) {
         console.error("Error updating notifications:", error);
         return res.status(500).json({ message: "Failed to update notifications" });
-      }
-    }
-    
-    // Handle AI matching endpoint
-    else if (url === '/api/ai/match-candidates' && method === 'POST') {
-      try {
-        const { candidates, jobId } = req.body;
-        
-        const job = await storage.getJob(jobId);
-        if (!job) {
-          return res.status(404).json({ message: "Job not found" });
-        }
-
-        const matchResults = [];
-        for (const candidate of candidates) {
-          try {
-            const matchResult = await calculateJobMatch(
-              candidate,
-              job.jobTitle,
-              job.skills || [],
-              job.jobDescription || '',
-              job.experience || '',
-              job.note || ''
-            );
-            
-            // Validate that we got a proper match result
-            if (!matchResult || typeof matchResult !== 'object') {
-              const errorMsg = `Failed to get valid match result for candidate ${candidate.name}`;
-              throw new Error(errorMsg);
-            }
-            
-            // Ensure all required fields are present
-            const validatedMatchResult = {
-              candidateId: candidate.id,
-              candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
-              candidate_email: matchResult.candidate_email || candidate.email || "",
-              match_percentage: matchResult.match_percentage || 0,
-              strengths: Array.isArray(matchResult.strengths) ? matchResult.strengths : [],
-              areas_for_improvement: Array.isArray(matchResult.areas_for_improvement) ? matchResult.areas_for_improvement : []
-            };
-            
-            matchResults.push(validatedMatchResult);
-          } catch (matchError) {
-            console.error(`Error matching candidate ${candidate.id}:`, matchError);
-            matchResults.push({
-              candidateId: candidate.id,
-              candidate_name: candidate.name || "Unknown",
-              candidate_email: candidate.email || "",
-              match_percentage: 0,
-              strengths: [],
-              areas_for_improvement: ["Error calculating match: " + (matchError instanceof Error ? matchError.message : 'Unknown error')]
-            });
-          }
-        }
-
-        return res.status(200).json({ matches: matchResults });
-      } catch (error) {
-        console.error("Error in candidate matching:", error);
-        return res.status(500).json({ 
-          message: "Failed to match candidates",
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
-      }
-    }
-    
-    // Handle interview questions generation
-    else if (url === '/api/ai/generate-questions' && method === 'POST') {
-      try {
-        const { candidate, jobId } = req.body;
-        
-        const job = await storage.getJob(jobId);
-        if (!job) {
-          return res.status(404).json({ message: "Job not found" });
-        }
-
-        const questions = await generateInterviewQuestions(
-          candidate,
-          job.jobTitle,
-          job.jobDescription || '',
-          job.skills || []
-        );
-        
-        // Validate that we got proper questions
-        if (!questions || typeof questions !== 'object') {
-          const errorMsg = `Failed to generate valid interview questions`;
-          throw new Error(errorMsg);
-        }
-
-        return res.status(200).json({ questions });
-      } catch (error) {
-        console.error("Error generating interview questions:", error);
-        return res.status(500).json({ message: "Failed to generate interview questions" });
-      }
-    }
-    
-    // Handle resume data extraction
-    else if (url === '/api/ai/extract-resume' && method === 'POST') {
-      try {
-        const { resumeText, filename } = req.body;
-        
-        if (!resumeText) {
-          return res.status(400).json({ message: "Resume text is required" });
-        }
-
-        // Use the extractResumeData function to extract candidate data from the resume text
-        const extractedData = await extractResumeData(resumeText);
-        
-        // Validate that we got meaningful data
-        if (!extractedData || !extractedData.name) {
-          return res.status(400).json({ message: "Failed to extract valid candidate data from resume" });
-        }
-        
-        // Ensure all required fields are present
-        const validatedExtractedData = {
-          name: extractedData.name || "Unknown",
-          email: extractedData.email || "",
-          portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
-          skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
-          experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
-          total_experience: extractedData.total_experience || "",
-          summary: extractedData.summary || "No summary available"
-        };
-        
-        return res.status(200).json(validatedExtractedData);
-      } catch (error) {
-        console.error("Error extracting resume data:", error);
-        return res.status(500).json({ 
-          message: "Failed to extract resume data",
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
       }
     }
     
@@ -577,6 +620,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle adding candidates to database
     else if (url === '/api/candidates/add' && method === 'POST') {
       try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
         const { candidates, jobId } = req.body;
 
         const addedCandidates = [];
