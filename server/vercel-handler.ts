@@ -628,29 +628,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         const { candidates, jobId } = req.body;
 
+        // Validate input
+        if (!candidates || !Array.isArray(candidates)) {
+          return res.status(400).json({ message: "Invalid candidates data" });
+        }
+
+        if (!jobId) {
+          return res.status(400).json({ message: "Job ID is required" });
+        }
+
         const addedCandidates = [];
+        const failedCandidates = [];
+        
         for (const candidate of candidates) {
           try {
-            const candidateData = insertCandidateSchema.parse({
-              candidateName: candidate.name,
-              email: candidate.email,
-              candidateSkills: candidate.skills,
-              candidateExperience: (candidate.experience as Array<{ duration: string }>).reduce((total: number, job: { duration: string }) => {
-                const durationMatch = job.duration.match(/(\d+)/);
+            // Validate required fields
+            if (!candidate.name || !candidate.email) {
+              throw new Error("Candidate name and email are required");
+            }
+
+            // Process candidate experience - it could be a number (from client) or an array (from server processing)
+            let candidateExperience = 0;
+            if (typeof candidate.experience === 'number') {
+              // Direct number from client
+              candidateExperience = candidate.experience;
+            } else if (Array.isArray(candidate.experience)) {
+              // Array of job experiences from server-side processing
+              candidateExperience = candidate.experience.reduce((total: number, job: { duration: string }) => {
+                const durationMatch = job.duration?.match(/(\d+)/);
                 return total + (durationMatch ? parseInt(durationMatch[1]) : 0);
-              }, 0),
+              }, 0);
+            }
+
+            // Ensure skills is an array
+            const candidateSkills = Array.isArray(candidate.skills) ? candidate.skills : [];
+            
+            // Validate that jobId is a number
+            const parsedJobId = parseInt(jobId);
+            if (isNaN(parsedJobId)) {
+              throw new Error("Invalid job ID");
+            }
+
+            const candidateData = insertCandidateSchema.parse({
+              candidateName: candidate.name.trim(),
+              email: candidate.email.trim(),
+              candidateSkills: candidateSkills,
+              candidateExperience: candidateExperience,
               resumeUrl: `resume_${candidate.id}.txt`,
-              status: 'resume_reviewed',
-              jobId: parseInt(jobId),
+              status: candidate.status || 'resume_reviewed',
+              jobId: parsedJobId,
               hrHandlingUserId: userId,
               matchPercentage: candidate.matchPercentage || null
             });
 
             const addedCandidate = await storage.createCandidate(candidateData);
-            addedCandidates.push(addedCandidate);
+            addedCandidates.push({
+              id: addedCandidate.id,
+              name: addedCandidate.candidateName,
+              email: addedCandidate.email
+            });
             
-          } catch (error) {
-            console.error(`Error adding candidate ${candidate.name}:`, error);
+          } catch (candidateError) {
+            console.error(`Error adding candidate ${candidate.name || 'Unknown'}:`, candidateError);
+            failedCandidates.push({
+              name: candidate.name || 'Unknown',
+              error: candidateError instanceof Error ? candidateError.message : 'Unknown error'
+            });
           }
         }
 
@@ -659,7 +702,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Get company ID from the job
           const job = await storage.getJob(parseInt(jobId));
           if (job && job.companyId) {
-            const candidateNames = addedCandidates.map(c => c.candidateName).join(', ');
+            const candidateNames = addedCandidates.map(c => c.name).join(', ');
             await storage.createNotificationForCompany(
               job.companyId,
               `${addedCandidates.length} new candidate${addedCandidates.length > 1 ? 's' : ''} added: ${candidateNames}`
@@ -668,12 +711,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         return res.status(200).json({ 
-          message: `Successfully added ${addedCandidates.length} candidates to database`,
-          candidates: addedCandidates 
+          message: `Successfully added ${addedCandidates.length} candidates to database${failedCandidates.length > 0 ? ` (${failedCandidates.length} failed)` : ''}`,
+          candidates: addedCandidates,
+          failed: failedCandidates
         });
       } catch (error) {
         console.error("Error adding candidates:", error);
-        return res.status(500).json({ message: "Failed to add candidates" });
+        return res.status(500).json({ 
+          message: "Failed to add candidates",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
     }
 

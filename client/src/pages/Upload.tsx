@@ -543,12 +543,18 @@ export default function Upload() {
         body: { candidates: selectedData, jobId: selectedJobId },
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setCurrentStep("added");
       queryClient.invalidateQueries({ queryKey: ["/api/candidates"] });
+      
+      // Show detailed success message
+      const successMessage = data.failed && data.failed.length > 0 
+        ? `Successfully added ${data.candidates?.length || 0} candidates. ${data.failed.length} candidates failed to add.`
+        : "Selected candidates have been added to the system";
+        
       toast({
         title: "Success",
-        description: "Selected candidates have been added to the system",
+        description: successMessage,
       });
     },
     onError: (error: any) => {
