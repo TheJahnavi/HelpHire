@@ -136,24 +136,41 @@ export default function Upload() {
       
       reader.onload = async (e) => {
         try {
-          const content = e.target?.result as string;
-          
           if (fileExtension === 'pdf') {
-            // For PDF files, we'll need to use a library or send to backend
-            // In production, we'll show a message that PDF parsing requires backend
-            reject(new Error('PDF parsing requires backend processing. Please use development server for PDF files.'));
+            // For PDF files, we'll use pdf-parse library
+            const arrayBuffer = e.target?.result as ArrayBuffer;
+            
+            // Dynamically import pdf-parse to avoid server-side issues
+            const pdf = await import('pdf-parse');
+            try {
+              // Convert ArrayBuffer to Buffer for pdf-parse
+              const buffer = Buffer.from(arrayBuffer);
+              const data = await pdf.default(buffer);
+              resolve(data.text);
+            } catch (parseError) {
+              reject(new Error(`Failed to parse PDF: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`));
+            }
           } else if (fileExtension === 'docx') {
-            // For DOCX files, we'll need to use a library or send to backend
-            // In production, we'll show a message that DOCX parsing requires backend
-            reject(new Error('DOCX parsing requires backend processing. Please use development server for DOCX files.'));
+            // For DOCX files, we'll use mammoth library
+            const arrayBuffer = e.target?.result as ArrayBuffer;
+            
+            // Dynamically import mammoth to avoid server-side issues
+            const mammoth = await import('mammoth');
+            try {
+              const result = await mammoth.default.extractRawText({ arrayBuffer });
+              resolve(result.value);
+            } catch (parseError) {
+              reject(new Error(`Failed to parse DOCX: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`));
+            }
           } else if (fileExtension === 'txt') {
             // For TXT files, we can parse directly
+            const content = e.target?.result as string;
             resolve(content);
           } else {
             reject(new Error(`Unsupported file type: ${fileExtension}`));
           }
         } catch (error) {
-          reject(error);
+          reject(new Error(`Failed to process file: ${error instanceof Error ? error.message : 'Unknown error'}`));
         }
       };
       
@@ -171,69 +188,77 @@ export default function Upload() {
     });
   };
 
-  // Client-side candidate extraction function (simplified)
+  // Client-side candidate extraction function using AI
   const extractCandidateData = async (text: string, filename: string): Promise<ExtractedCandidate> => {
-    // This is a simplified extraction for demonstration
-    // In a real implementation, you would use a more sophisticated approach
-    const lines = text.split('\n').filter(line => line.trim() !== '');
-    
-    // Simple extraction logic
-    const name = lines.find(line => line.match(/name|contact/i))?.split(':').pop()?.trim() || 
-                 filename.replace(/\.[^/.]+$/, "") || 'Unknown Candidate';
-    
-    const email = lines.find(line => line.includes('@'))?.trim() || 'unknown@example.com';
-    
-    // Extract skills (simple keyword matching)
-    const skillKeywords = ['javascript', 'python', 'java', 'react', 'angular', 'node', 'sql', 'html', 'css'];
-    const skills = skillKeywords.filter(skill => 
-      text.toLowerCase().includes(skill.toLowerCase())
-    );
-    
-    // Extract experience (simple pattern matching)
-    const experienceMatch = text.match(/(\d+)\s*(?:years?|yrs?)/i);
-    const experienceYears = experienceMatch ? parseInt(experienceMatch[1]) : 0;
-    
-    return {
-      id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name,
-      email,
-      portfolio_link: [],
-      skills,
-      experience: [
-        {
-          job_title: 'Software Developer',
-          company: 'Tech Corp',
-          duration: `${experienceYears} years`,
-          projects: [
-            'Developed web applications using React and Node.js',
-            'Implemented RESTful APIs for mobile applications'
-          ]
-        }
-      ],
-      total_experience: `${experienceYears} years`,
-      summary: `Experienced developer with ${experienceYears} years of experience in web development. Proficient in JavaScript, React, and Node.js.`
-    };
+    try {
+      // Send the text to the backend AI service for processing
+      const response = await apiRequest("/api/ai/extract-resume", {
+        method: "POST",
+        body: { 
+          resumeText: text,
+          filename: filename
+        },
+      });
+      
+      // Validate and return the extracted data
+      if (!response || !response.name) {
+        throw new Error('Failed to extract candidate data from resume');
+      }
+      
+      return {
+        id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: response.name || 'Unknown Candidate',
+        email: response.email || '',
+        portfolio_link: Array.isArray(response.portfolio_link) ? response.portfolio_link : [],
+        skills: Array.isArray(response.skills) ? response.skills : [],
+        experience: Array.isArray(response.experience) ? response.experience : [],
+        total_experience: response.total_experience || '',
+        summary: response.summary || 'No summary available'
+      };
+    } catch (error) {
+      console.error("Error extracting candidate data:", error);
+      throw new Error(`Failed to extract candidate data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   // Step 1: Upload and extract data
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      // Always use the backend API for file uploads, regardless of environment
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("resumes", file);
-      });
+      const extractedCandidates: ExtractedCandidate[] = [];
+      const processingErrors: string[] = [];
 
-      // Log the files being uploaded
-      console.log("Uploading files:", files);
-      return apiRequest("/api/upload/resumes", {
-        method: "POST",
-        body: formData,
-      });
+      // Process each file individually
+      for (const file of files) {
+        try {
+          // Parse the file content
+          const content = await parseFileContent(file);
+          
+          if (!content || content.trim().length < 50) {
+            throw new Error(`Insufficient text content extracted from ${file.name}`);
+          }
+          
+          // Extract candidate data using AI
+          const candidateData = await extractCandidateData(content, file.name);
+          extractedCandidates.push({
+            ...candidateData,
+            id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          });
+        } catch (error) {
+          const errorMessage = `Error processing file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          processingErrors.push(errorMessage);
+          console.error(errorMessage);
+        }
+      }
+
+      return {
+        candidates: extractedCandidates,
+        errors: processingErrors,
+        message: processingErrors.length > 0 
+          ? `Processed ${extractedCandidates.length} of ${files.length} files successfully`
+          : `Extracted data from ${extractedCandidates.length} resumes`
+      };
     },
     onSuccess: (data) => {
-      console.log("Upload response data:", data); // Add logging to debug
-      
       // Check if we have candidates in the response
       const candidatesArray = data.candidates || [];
       const candidatesWithIds = candidatesArray.map((candidate: any, index: number) => ({
@@ -241,7 +266,6 @@ export default function Upload() {
         id: candidate.id || `temp_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
       }));
       
-      console.log("Candidates with IDs:", candidatesWithIds);
       setExtractedCandidates(candidatesWithIds);
       setCurrentStep("extracted");
       
@@ -258,12 +282,21 @@ export default function Upload() {
           variant: "destructive",
         });
       }
+      
+      // Show any processing errors as warnings
+      if (data.errors && data.errors.length > 0) {
+        data.errors.forEach(error => {
+          toast({
+            title: "Warning",
+            description: error,
+            variant: "destructive",
+          });
+        });
+      }
     },
     onError: (error: any) => {
-      console.error("Upload error:", error);
       // Log more detailed error information
       const errorMessage = error.message || error.toString() || "Failed to process resumes. Please try again.";
-      console.error("Detailed error:", JSON.stringify(error, null, 2));
       
       // Check if it's a network error
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -298,8 +331,6 @@ export default function Upload() {
       candidates: ExtractedCandidate[];
       jobId: string;
     }) => {
-      // Log the data being sent to the backend
-      console.log("Sending match request with data:", { candidates, jobId });
       return apiRequest("/api/ai/match-candidates", {
         method: "POST",
         body: { candidates, jobId },
@@ -308,7 +339,6 @@ export default function Upload() {
     onSuccess: (data) => {
       // Ensure we have matches data
       if (!data || !data.matches || !Array.isArray(data.matches)) {
-        console.error("Invalid match data received:", data);
         toast({
           title: "Error",
           description: "Invalid match data received from server",
@@ -316,17 +346,11 @@ export default function Upload() {
         });
         return;
       }
-
-      // Log the raw data for debugging
-      console.log("Raw match data received:", data);
       
       // Process matches to ensure proper candidate ID matching
       const matchesWithIds = data.matches.map((match: any) => {
         // Find the corresponding candidate by id
         const candidate = extractedCandidates.find(c => c.id === match.candidateId);
-        
-        // Log for debugging
-        console.log("Processing match:", match, "Found candidate:", candidate);
         
         // Ensure we have all required fields
         return {
@@ -339,7 +363,6 @@ export default function Upload() {
         };
       });
       
-      console.log("Processed matches with IDs:", matchesWithIds);
       setMatchResults(matchesWithIds);
       setCurrentStep("matched");
       
@@ -349,10 +372,8 @@ export default function Upload() {
       });
     },
     onError: (error: any) => {
-      console.error("Match error:", error);
       // Log more detailed error information
       const errorMessage = error.message || error.toString() || "Failed to match candidates";
-      console.error("Detailed error:", JSON.stringify(error, null, 2));
       
       // Check if it's a network error
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -386,8 +407,6 @@ export default function Upload() {
         throw new Error("Candidate not found");
       }
 
-      // Log the data being sent to the backend
-      console.log("Sending questions request with data:", { candidate, jobId: parseInt(selectedJobId) });
       return apiRequest("/api/ai/generate-questions", {
         method: "POST",
         body: { candidate, jobId: parseInt(selectedJobId) },
@@ -396,7 +415,6 @@ export default function Upload() {
     onSuccess: (data, candidateId) => {
       // Validate the response data
       if (!data || !data.questions) {
-        console.error("Invalid interview questions data received:", data);
         toast({
           title: "Error",
           description: "Invalid interview questions data received from server",
@@ -420,10 +438,8 @@ export default function Upload() {
       setIsQuestionsDialogOpen(true);
     },
     onError: (error: any) => {
-      console.error("Interview questions error:", error);
       // Log more detailed error information
       const errorMessage = error.message || error.toString() || "Failed to generate interview questions";
-      console.error("Detailed error:", JSON.stringify(error, null, 2));
       
       // Check if it's a network error
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -483,8 +499,6 @@ export default function Upload() {
         };
       });
 
-      // Log the data being sent to the backend
-      console.log("Sending add candidates request with data:", { candidates: selectedData, jobId: selectedJobId });
       return apiRequest("/api/candidates/add", {
         method: "POST",
         body: { candidates: selectedData, jobId: selectedJobId },
@@ -499,10 +513,8 @@ export default function Upload() {
       });
     },
     onError: (error: any) => {
-      console.error("Add candidates error:", error);
       // Log more detailed error information
       const errorMessage = error.message || error.toString() || "Failed to add candidates";
-      console.error("Detailed error:", JSON.stringify(error, null, 2));
       
       // Check if it's a network error
       if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -534,12 +546,8 @@ export default function Upload() {
   };
 
   const handleUploadAndExtract = () => {
-    console.log("handleUploadAndExtract called");
-    console.log("Selected files:", selectedFiles);
-    
     if (selectedFiles && selectedFiles.length > 0) {
       const files = Array.from(selectedFiles);
-      console.log("Uploading files:", files);
       
       // Validate file types before upload
       const validFiles = files.filter(file => {
@@ -573,10 +581,6 @@ export default function Upload() {
   };
 
   const handleAnalyzeAndMatch = () => {
-    console.log("handleAnalyzeAndMatch called");
-    console.log("Selected job ID:", selectedJobId);
-    console.log("Extracted candidates:", extractedCandidates);
-    
     if (!selectedJobId) {
       toast({
         title: "Error",
@@ -598,18 +602,12 @@ export default function Upload() {
     // Validate that all candidates have proper IDs
     const validCandidates = extractedCandidates.filter(candidate => candidate.id);
     if (validCandidates.length !== extractedCandidates.length) {
-      console.warn("Some candidates are missing IDs:", extractedCandidates);
       toast({
         title: "Warning",
         description: "Some candidates are missing proper IDs. This may affect matching.",
         variant: "destructive",
       });
     }
-
-    console.log("Calling matchMutation with:", {
-      candidates: validCandidates,
-      jobId: selectedJobId,
-    });
 
     matchMutation.mutate({
       candidates: validCandidates,
