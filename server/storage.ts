@@ -86,10 +86,8 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching user with ID: ${id}`);
-      const [user] = await database.select().from(users).where(eq(users.id, id));
       // Note: firstName and lastName can be null, which is valid according to the schema
-      console.log(`User fetch result:`, user);
+      const [user] = await database.select().from(users).where(eq(users.id, id));
       return user;
     } catch (error) {
       console.error("Error in getUser:", error);
@@ -100,9 +98,7 @@ export class DatabaseStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching user with email: ${email}`);
       const [user] = await database.select().from(users).where(eq(users.email, email));
-      console.log(`User by email fetch result:`, user);
       return user;
     } catch (error) {
       console.error("Error in getUserByEmail:", error);
@@ -113,12 +109,10 @@ export class DatabaseStorage implements IStorage {
   async createUser(userData: InsertUser): Promise<User> {
     try {
       const database = this.checkDatabase();
-      console.log(`Creating user with data:`, userData);
       const [user] = await database
         .insert(users)
         .values(userData)
         .returning();
-      console.log(`User created:`, user);
       return user;
     } catch (error) {
       console.error("Error in createUser:", error);
@@ -129,13 +123,11 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
     try {
       const database = this.checkDatabase();
-      console.log(`Updating user ${id} with data:`, updates);
       const [user] = await database
         .update(users)
         .set(updates)
         .where(eq(users.id, id))
         .returning();
-      console.log(`User updated:`, user);
       return user;
     } catch (error) {
       console.error("Error in updateUser:", error);
@@ -147,9 +139,7 @@ export class DatabaseStorage implements IStorage {
   async getCompany(id: number): Promise<Company | undefined> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching company with ID: ${id}`);
       const [company] = await database.select().from(companies).where(eq(companies.id, id));
-      console.log(`Company fetch result:`, company);
       return company;
     } catch (error) {
       console.error("Error in getCompany:", error);
@@ -160,9 +150,7 @@ export class DatabaseStorage implements IStorage {
   async getCompanyByName(name: string): Promise<Company | undefined> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching company with name: ${name}`);
       const [company] = await database.select().from(companies).where(eq(companies.companyName, name));
-      console.log(`Company by name fetch result:`, company);
       return company;
     } catch (error) {
       console.error("Error in getCompanyByName:", error);
@@ -173,12 +161,10 @@ export class DatabaseStorage implements IStorage {
   async createCompany(companyData: InsertCompany): Promise<Company> {
     try {
       const database = this.checkDatabase();
-      console.log(`Creating company with data:`, companyData);
       const [company] = await database
         .insert(companies)
         .values(companyData)
         .returning();
-      console.log(`Company created:`, company);
       return company;
     } catch (error) {
       console.error("Error in createCompany:", error);
@@ -189,9 +175,7 @@ export class DatabaseStorage implements IStorage {
   async getCompanies(): Promise<Company[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching all companies`);
       const companiesList = await database.select().from(companies);
-      console.log(`Companies fetch result:`, companiesList.length);
       return companiesList;
     } catch (error) {
       console.error("Error in getCompanies:", error);
@@ -203,9 +187,7 @@ export class DatabaseStorage implements IStorage {
   async getJobsByCompany(companyId: number): Promise<Job[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching jobs for company ID: ${companyId}`);
       const jobsList = await database.select().from(jobs).where(eq(jobs.companyId, companyId));
-      console.log(`Jobs fetch result:`, jobsList.length);
       return jobsList;
     } catch (error) {
       console.error("Error in getJobsByCompany:", error);
@@ -216,7 +198,6 @@ export class DatabaseStorage implements IStorage {
   async getJobsByHRUser(companyId: number, hrUserId: string): Promise<Job[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching jobs for company ID: ${companyId}, HR user ID: ${hrUserId}`);
       const jobsList = await database
         .select()
         .from(jobs)
@@ -224,7 +205,6 @@ export class DatabaseStorage implements IStorage {
           eq(jobs.companyId, companyId),
           eq(jobs.hrHandlingUserId, hrUserId)
         ));
-      console.log(`Jobs by HR user fetch result:`, jobsList.length);
       return jobsList;
     } catch (error) {
       console.error("Error in getJobsByHRUser:", error);
@@ -235,9 +215,7 @@ export class DatabaseStorage implements IStorage {
   async getJob(jobId: number): Promise<Job | undefined> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching job with ID: ${jobId}`);
       const [job] = await database.select().from(jobs).where(eq(jobs.id, jobId));
-      console.log(`Job fetch result:`, job);
       return job;
     } catch (error) {
       console.error("Error in getJob:", error);
@@ -305,9 +283,7 @@ export class DatabaseStorage implements IStorage {
   async getCandidateById(id: number): Promise<Candidate | undefined> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching candidate with ID: ${id}`);
       const [candidate] = await database.select().from(candidates).where(eq(candidates.id, id));
-      console.log(`Candidate fetch result:`, candidate);
       return candidate;
     } catch (error) {
       console.error("Error in getCandidateById:", error);
@@ -318,7 +294,6 @@ export class DatabaseStorage implements IStorage {
   async getCandidatesByCompany(companyId: number): Promise<Candidate[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching candidates for company ID: ${companyId}`);
       const result = await database
         .select()
         .from(candidates)
@@ -327,7 +302,6 @@ export class DatabaseStorage implements IStorage {
       
       // Extract candidates from the join result
       const candidatesList = result.map(row => row.candidates);
-      console.log(`Candidates by company fetch result:`, candidatesList.length);
       return candidatesList;
     } catch (error) {
       console.error("Error in getCandidatesByCompany:", error);
@@ -338,7 +312,6 @@ export class DatabaseStorage implements IStorage {
   async getCandidatesByHRUser(hrUserId: string, companyId: number): Promise<Candidate[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching candidates for HR user ID: ${hrUserId}, company ID: ${companyId}`);
       const result = await database
         .select()
         .from(candidates)
@@ -350,7 +323,6 @@ export class DatabaseStorage implements IStorage {
       
       // Extract candidates from the join result
       const candidatesList = result.map(row => row.candidates);
-      console.log(`Candidates by HR user fetch result:`, candidatesList.length);
       return candidatesList;
     } catch (error) {
       console.error("Error in getCandidatesByHRUser:", error);
@@ -409,12 +381,10 @@ export class DatabaseStorage implements IStorage {
   async getTodosByUser(userId: string): Promise<Todo[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching todos for user ID: ${userId}`);
       const todosList = await database
         .select()
         .from(todos)
         .where(eq(todos.userId, userId));
-      console.log(`Todos fetch result:`, todosList.length);
       return todosList;
     } catch (error) {
       console.error("Error in getTodosByUser:", error);
@@ -459,12 +429,10 @@ export class DatabaseStorage implements IStorage {
   async getNotificationsByUser(userId: string): Promise<Notification[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching notifications for user ID: ${userId}`);
       const notificationsList = await database
         .select()
         .from(notifications)
         .where(eq(notifications.userId, userId));
-      console.log(`Notifications fetch result:`, notificationsList.length);
       return notificationsList;
     } catch (error) {
       console.error("Error in getNotificationsByUser:", error);
@@ -544,12 +512,10 @@ export class DatabaseStorage implements IStorage {
   async getUsersByCompany(companyId: number): Promise<User[]> {
     try {
       const database = this.checkDatabase();
-      console.log(`Fetching users for company ID: ${companyId}`);
       const usersList = await database
         .select()
         .from(users)
         .where(eq(users.companyId, companyId));
-      console.log(`Users by company fetch result:`, usersList.length);
       return usersList;
     } catch (error) {
       console.error("Error in getUsersByCompany:", error);
