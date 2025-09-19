@@ -518,6 +518,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
+    // Handle resume data extraction
+    else if (url === '/api/ai/extract-resume' && method === 'POST') {
+      try {
+        const { resumeText, filename } = req.body;
+        
+        if (!resumeText) {
+          return res.status(400).json({ message: "Resume text is required" });
+        }
+
+        // Use the extractResumeData function to extract candidate data from the resume text
+        const extractedData = await extractResumeData(resumeText);
+        
+        // Validate that we got meaningful data
+        if (!extractedData || !extractedData.name) {
+          return res.status(400).json({ message: "Failed to extract valid candidate data from resume" });
+        }
+        
+        // Ensure all required fields are present
+        const validatedExtractedData = {
+          name: extractedData.name || "Unknown",
+          email: extractedData.email || "",
+          portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
+          skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+          experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+          total_experience: extractedData.total_experience || "",
+          summary: extractedData.summary || "No summary available"
+        };
+        
+        return res.status(200).json(validatedExtractedData);
+      } catch (error) {
+        console.error("Error extracting resume data:", error);
+        return res.status(500).json({ 
+          message: "Failed to extract resume data",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+    
     // Handle resume upload endpoint
     else if (url === '/api/upload/resumes' && method === 'POST') {
       try {

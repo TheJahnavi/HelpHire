@@ -80,6 +80,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup session middleware
   setupSession(app);
 
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      message: 'Server is running correctly'
+    });
+  });
+
   // Auth routes
   app.post('/api/auth/signup', async (req, res) => {
     try {
@@ -1297,6 +1306,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error in candidate matching:", error);
       res.status(500).json({ message: "Failed to match candidates" });
+    }
+  });
+
+  // Resume data extraction endpoint
+  app.post('/api/ai/extract-resume', async (req: any, res) => {
+    try {
+      const { resumeText, filename } = req.body;
+      
+      if (!resumeText) {
+        return res.status(400).json({ message: "Resume text is required" });
+      }
+
+      // Use the extractResumeData function to extract candidate data from the resume text
+      const extractedData = await extractResumeData(resumeText);
+      
+      // Validate that we got meaningful data
+      if (!extractedData || !extractedData.name) {
+        return res.status(400).json({ message: "Failed to extract valid candidate data from resume" });
+      }
+      
+      // Ensure all required fields are present
+      const validatedExtractedData = {
+        name: extractedData.name || "Unknown",
+        email: extractedData.email || "",
+        portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
+        skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+        experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+        total_experience: extractedData.total_experience || "",
+        summary: extractedData.summary || "No summary available"
+      };
+      
+      res.json(validatedExtractedData);
+    } catch (error) {
+      console.error("Error extracting resume data:", error);
+      res.status(500).json({ 
+        message: "Failed to extract resume data",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
