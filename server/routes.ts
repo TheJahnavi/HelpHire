@@ -852,6 +852,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           console.log(`Extracted data for ${file.originalname}:`, extractedData);
           
+          // Validate that we got meaningful data
+          if (!extractedData || !extractedData.name) {
+            const errorMsg = `Failed to extract valid candidate data from ${file.originalname}`;
+            console.log(errorMsg);
+            throw new Error(errorMsg);
+          }
+          
           // Ensure all required fields are present
           const validatedExtractedData = {
             name: extractedData.name || "Unknown",
@@ -946,6 +953,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           console.log(`Match result for ${candidate.name}:`, matchResult);
           
+          // Validate that we got a proper match result
+          if (!matchResult || typeof matchResult !== 'object') {
+            const errorMsg = `Failed to get valid match result for candidate ${candidate.name}`;
+            console.log(errorMsg);
+            throw new Error(errorMsg);
+          }
+          
           // Ensure all required fields are present
           const validatedMatchResult = {
             candidateId: candidate.id,
@@ -1007,6 +1021,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       console.log(`Generated questions:`, questions);
+      
+      // Validate that we got proper questions
+      if (!questions || typeof questions !== 'object') {
+        const errorMsg = `Failed to generate valid interview questions`;
+        console.log(errorMsg);
+        throw new Error(errorMsg);
+      }
 
       // Log the questions being returned
       console.log("Returning interview questions:", questions);

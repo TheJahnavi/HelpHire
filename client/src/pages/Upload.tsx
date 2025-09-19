@@ -256,6 +256,13 @@ export default function Upload() {
           description: "Unable to connect to the server. Please check your internet connection.",
           variant: "destructive",
         });
+      } else if (error.message && error.message.includes('not supported')) {
+        // Handle Vercel environment limitation
+        toast({
+          title: "Feature Not Available",
+          description: "Resume upload is not supported in this environment. Please use the development server for this feature.",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Error",

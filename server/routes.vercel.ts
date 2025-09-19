@@ -917,16 +917,25 @@ export function registerRoutes(app: Application) {
           const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           
           // Validate that we got meaningful data
-          if (!extractedData.name || !extractedData.email) {
+          if (!extractedData || !extractedData.name) {
             const errorMsg = `Failed to extract valid candidate data from ${file.originalname}`;
             console.log(errorMsg);
             throw new Error(errorMsg);
           }
           
-          extractedCandidates.push({
-            ...extractedData,
+          // Ensure all required fields are present
+          const validatedExtractedData = {
+            name: extractedData.name || "Unknown",
+            email: extractedData.email || "",
+            portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
+            skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+            experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+            total_experience: extractedData.total_experience || "",
+            summary: extractedData.summary || "No summary available",
             id: candidateId
-          });
+          };
+          
+          extractedCandidates.push(validatedExtractedData);
 
           console.log(`Successfully processed ${file.originalname} - Extracted: ${extractedData.name}`);
 
@@ -998,10 +1007,24 @@ export function registerRoutes(app: Application) {
             job.note || ''
           );
           
-          matchResults.push({
+          // Validate that we got a proper match result
+          if (!matchResult || typeof matchResult !== 'object') {
+            const errorMsg = `Failed to get valid match result for candidate ${candidate.name}`;
+            console.log(errorMsg);
+            throw new Error(errorMsg);
+          }
+          
+          // Ensure all required fields are present
+          const validatedMatchResult = {
             candidateId: candidate.id,
-            ...matchResult
-          });
+            candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
+            candidate_email: matchResult.candidate_email || candidate.email || "",
+            match_percentage: matchResult.match_percentage || 0,
+            strengths: Array.isArray(matchResult.strengths) ? matchResult.strengths : [],
+            areas_for_improvement: Array.isArray(matchResult.areas_for_improvement) ? matchResult.areas_for_improvement : []
+          };
+          
+          matchResults.push(validatedMatchResult);
         } catch (error) {
           console.error(`Error matching candidate ${candidate.id}:`, error);
           matchResults.push({
@@ -1038,6 +1061,13 @@ export function registerRoutes(app: Application) {
         job.jobDescription || '',
         job.skills || []
       );
+      
+      // Validate that we got proper questions
+      if (!questions || typeof questions !== 'object') {
+        const errorMsg = `Failed to generate valid interview questions`;
+        console.log(errorMsg);
+        throw new Error(errorMsg);
+      }
 
       res.json({ questions });
     } catch (error) {

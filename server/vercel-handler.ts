@@ -456,6 +456,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
+    // Handle resume upload endpoint
+    else if (url === '/api/upload/resumes' && method === 'POST') {
+      // This endpoint is not supported in the Vercel handler due to file upload limitations
+      // File uploads require a different approach in serverless environments
+      return res.status(400).json({ 
+        message: 'Resume upload is not supported in this environment. Please use the development server for this feature.',
+        error: 'Vercel serverless functions do not support multipart form data parsing required for file uploads.'
+      });
+    }
+    
     // Handle adding candidates to database
     else if (url === '/api/candidates/add' && method === 'POST') {
       try {
