@@ -444,28 +444,18 @@ export default function Upload() {
           throw new Error(`Missing data for candidate ${id}`);
         }
 
-        // Format experience data correctly
-        const formattedExperience = {
-          years: candidate.experience.reduce((total, job) => {
-            const duration = job.duration.match(/(\d+)/);
-            return total + (duration ? parseInt(duration[1]) : 0);
-          }, 0),
-          projects: candidate.experience.map(job => ({
-            name: job.job_title,
-            skills: candidate.skills,
-            years: (() => {
-              const duration = job.duration.match(/(\d+)/);
-              return duration ? parseInt(duration[1]) : 0;
-            })()
-          }))
-        };
+        // Calculate total years of experience from the experience array
+        const totalExperience = candidate.experience.reduce((total, job) => {
+          const durationMatch = job.duration.match(/(\d+)/);
+          return total + (durationMatch ? parseInt(durationMatch[1]) : 0);
+        }, 0);
 
         return {
           id: candidate.id,
           name: match.candidate_name || candidate.name,
           email: match.candidate_email || candidate.email,
           skills: candidate.skills,
-          experience: formattedExperience,
+          experience: totalExperience,
           matchPercentage: match.match_percentage,
         };
       });

@@ -573,7 +573,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               candidateName: candidate.name,
               email: candidate.email,
               candidateSkills: candidate.skills,
-              candidateExperience: JSON.stringify(candidate.experience),
+              candidateExperience: (candidate.experience as Array<{ duration: string }>).reduce((total: number, job: { duration: string }) => {
+                const durationMatch = job.duration.match(/(\d+)/);
+                return total + (durationMatch ? parseInt(durationMatch[1]) : 0);
+              }, 0),
               resumeUrl: `resume_${candidate.id}.txt`,
               status: 'resume_reviewed',
               jobId: parseInt(jobId),
