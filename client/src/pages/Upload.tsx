@@ -256,11 +256,11 @@ export default function Upload() {
           description: "Unable to connect to the server. Please check your internet connection.",
           variant: "destructive",
         });
-      } else if (error.message && error.message.includes('not supported')) {
+      } else if (error.message && (error.message.includes('not supported') || error.message.includes('Vercel serverless functions') || error.message.includes('deployment environment'))) {
         // Handle Vercel environment limitation
         toast({
-          title: "Feature Not Available",
-          description: "Resume upload is not supported in this environment. Please use the development server for this feature.",
+          title: "Feature Limited in Deployment Environment",
+          description: "Full resume processing requires local development environment. Please run 'npm run dev' locally for complete functionality.",
           variant: "destructive",
         });
       } else {
@@ -345,6 +345,13 @@ export default function Upload() {
           description: "Unable to connect to the server. Please check your internet connection.",
           variant: "destructive",
         });
+      } else if (error.message && (error.message.includes('not supported') || error.message.includes('Vercel serverless functions') || error.message.includes('deployment environment'))) {
+        // Handle Vercel environment limitation
+        toast({
+          title: "Feature Limited in Deployment Environment",
+          description: "Full resume processing requires local development environment. Please run 'npm run dev' locally for complete functionality.",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Error",
@@ -409,6 +416,13 @@ export default function Upload() {
           description: "Unable to connect to the server. Please check your internet connection.",
           variant: "destructive",
         });
+      } else if (error.message && (error.message.includes('not supported') || error.message.includes('Vercel serverless functions') || error.message.includes('deployment environment'))) {
+        // Handle Vercel environment limitation
+        toast({
+          title: "Feature Limited in Deployment Environment",
+          description: "Full resume processing requires local development environment. Please run 'npm run dev' locally for complete functionality.",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Error",
@@ -466,6 +480,13 @@ export default function Upload() {
         toast({
           title: "Network Error",
           description: "Unable to connect to the server. Please check your internet connection.",
+          variant: "destructive",
+        });
+      } else if (error.message && (error.message.includes('not supported') || error.message.includes('Vercel serverless functions') || error.message.includes('deployment environment'))) {
+        // Handle Vercel environment limitation
+        toast({
+          title: "Feature Limited in Deployment Environment",
+          description: "Full resume processing requires local development environment. Please run 'npm run dev' locally for complete functionality.",
           variant: "destructive",
         });
       } else {
