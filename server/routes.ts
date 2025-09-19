@@ -966,6 +966,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/candidates/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const candidate = await storage.getCandidateById(id);
+      
+      if (!candidate) {
+        return res.status(404).json({ message: "Candidate not found" });
+      }
+      
+      // Check if user has permission to access this candidate
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
+      
+      if (!user || (user.id !== candidate.hrHandlingUserId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(candidate);
+    } catch (error) {
+      console.error("Error fetching candidate:", error);
+      res.status(500).json({ message: "Failed to fetch candidate" });
+    }
+  });
+
   app.delete('/api/candidates/:id', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -1342,6 +1366,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint to get extracted candidate data by ID
+  app.get('/api/upload/candidates/:id', async (req: any, res) => {
+    try {
+      const candidateId = req.params.id;
+      // In a real implementation, this would fetch the candidate data from a temporary storage
+      // For now, we'll return a mock response
+      res.status(404).json({ message: "Candidate data not found" });
+    } catch (error) {
+      console.error("Error fetching candidate data:", error);
+      res.status(500).json({ message: "Failed to fetch candidate data" });
+    }
+  });
+
+  // Update multiple candidates status
+  app.put('/api/candidates/bulk-update', isAuthenticated, async (req: any, res) => {
+    try {
+      const { candidateIds, status } = req.body;
+      const sessionUser = req.session.user;
+      
+      if (!Array.isArray(candidateIds) || !status) {
+        return res.status(400).json({ message: "Invalid input: candidateIds must be an array and status is required" });
+      }
+      
+      const updatedCandidates = [];
+      for (const id of candidateIds) {
+        try {
+          const updatedCandidate = await storage.updateCandidate(id, { status });
+          updatedCandidates.push(updatedCandidate);
+        } catch (error) {
+          console.error(`Error updating candidate ${id}:`, error);
+        }
+      }
+      
+      res.json({ 
+        message: `Successfully updated ${updatedCandidates.length} of ${candidateIds.length} candidates`,
+        candidates: updatedCandidates 
+      });
+    } catch (error) {
+      console.error("Error bulk updating candidates:", error);
+      res.status(500).json({ message: "Failed to bulk update candidates" });
+    }
+  });
+
   // Add candidates to database  
   app.post('/api/candidates/add', isAuthenticated, async (req: any, res) => {
     try {
@@ -1461,6 +1528,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error adding candidates:", error);
       res.status(500).json({ message: "Failed to add candidates" });
+    }
+  });
+
+  // Endpoint to get job details by ID
+  app.get('/api/jobs/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const job = await storage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      
+      // Check if user has permission to access this job
+      const sessionUser = req.session.user;
+      const user = await storage.getUser(sessionUser.id);
+      
+      if (!user || (user.companyId !== job.companyId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      res.json(job);
+    } catch (error) {
+      console.error("Error fetching job:", error);
+      res.status(500).json({ message: "Failed to fetch job" });
     }
   });
 

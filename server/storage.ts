@@ -46,6 +46,7 @@ export interface IStorage {
   deleteJob(id: number): Promise<{ success: boolean; message?: string }>;
   
   // Candidate operations
+  getCandidateById(id: number): Promise<Candidate | undefined>;
   getCandidatesByCompany(companyId: number): Promise<Candidate[]>;
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
   updateCandidate(id: number, updates: Partial<Candidate>): Promise<Candidate>;
@@ -87,6 +88,7 @@ export class DatabaseStorage implements IStorage {
       const database = this.checkDatabase();
       console.log(`Fetching user with ID: ${id}`);
       const [user] = await database.select().from(users).where(eq(users.id, id));
+      // Note: firstName and lastName can be null, which is valid according to the schema
       console.log(`User fetch result:`, user);
       return user;
     } catch (error) {
@@ -300,6 +302,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Candidate operations
+  async getCandidateById(id: number): Promise<Candidate | undefined> {
+    try {
+      const database = this.checkDatabase();
+      console.log(`Fetching candidate with ID: ${id}`);
+      const [candidate] = await database.select().from(candidates).where(eq(candidates.id, id));
+      console.log(`Candidate fetch result:`, candidate);
+      return candidate;
+    } catch (error) {
+      console.error("Error in getCandidateById:", error);
+      return undefined;
+    }
+  }
+
   async getCandidatesByCompany(companyId: number): Promise<Candidate[]> {
     try {
       const database = this.checkDatabase();

@@ -83,6 +83,22 @@ interface InterviewQuestions {
   jobSpecific: string[];
 }
 
+// Add new interface for the candidate data to be added to database
+interface CandidateToAdd {
+  id: string;
+  name: string;
+  email: string;
+  skills: string[];
+  experience: number;
+  matchPercentage: number;
+  jobTitle: string;
+  jobId: string;
+  hrHandlingUserId: string;
+  status: string;
+  reportLink: string | null;
+  interviewLink: string | null;
+}
+
 type UploadStep = "upload" | "extracted" | "matched" | "added";
 
 export default function Upload() {
@@ -439,6 +455,7 @@ export default function Upload() {
       const selectedData = selectedIds.map(id => {
         const candidate = extractedCandidates.find(c => c.id === id);
         const match = matchResults.find(m => m.candidateId === id);
+        const selectedJob = jobs.find((job: any) => job.id.toString() === selectedJobId);
         
         if (!candidate || !match) {
           throw new Error(`Missing data for candidate ${id}`);
@@ -457,6 +474,12 @@ export default function Upload() {
           skills: candidate.skills,
           experience: totalExperience,
           matchPercentage: match.match_percentage,
+          jobTitle: selectedJob?.jobTitle || "",
+          jobId: selectedJobId,
+          hrHandlingUserId: user?.id || "",
+          status: "resume_reviewed",
+          reportLink: null,
+          interviewLink: null,
         };
       });
 
@@ -654,6 +677,28 @@ export default function Upload() {
         </ul>
       </div>
     ));
+  };
+
+  // Helper function to format strengths for display
+  const formatStrengths = (strengths: string[]) => {
+    return (
+      <ul className="list-disc list-inside text-sm">
+        {strengths.slice(0, 5).map((strength, index) => (
+          <li key={index}>{strength}</li>
+        ))}
+      </ul>
+    );
+  };
+
+  // Helper function to format areas for improvement for display
+  const formatAreasForImprovement = (areas: string[]) => {
+    return (
+      <ul className="list-disc list-inside text-sm">
+        {areas.slice(0, 5).map((area, index) => (
+          <li key={index}>{area}</li>
+        ))}
+      </ul>
+    );
   };
 
   return (
@@ -886,18 +931,10 @@ export default function Upload() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <ul className="list-disc list-inside text-sm">
-                              {match.strengths.slice(0, 3).map((strength, index) => (
-                                <li key={index}>{strength}</li>
-                              ))}
-                            </ul>
+                            {formatStrengths(match.strengths)}
                           </TableCell>
                           <TableCell>
-                            <ul className="list-disc list-inside text-sm">
-                              {match.areas_for_improvement.slice(0, 3).map((area, index) => (
-                                <li key={index}>{area}</li>
-                              ))}
-                            </ul>
+                            {formatAreasForImprovement(match.areas_for_improvement)}
                           </TableCell>
                           <TableCell>
                             <Dialog>
