@@ -4,7 +4,6 @@ import bcrypt from "bcryptjs";
 import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema } from "../shared/schema.js";
 import { z } from "zod";
 import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini.js";
-import formidable from 'formidable';
 import fs from 'fs';
 import * as mammoth from 'mammoth';
 import path from 'path';
@@ -524,142 +523,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle resume upload endpoint
     else if (url === '/api/upload/resumes' && method === 'POST') {
       try {
-        // For Vercel environment, we'll parse the multipart form data manually
-        // Configure formidable to handle file uploads properly
-        const form = formidable({
-          multiples: true,
-          // Use a temporary directory that works in Vercel
-          uploadDir: '/tmp',
-          // Keep file extensions
-          keepExtensions: true,
-          // Set file size limit
-          maxFileSize: 10 * 1024 * 1024, // 10MB
-          // Filter allowed file types
-          filter: function ({ name, originalFilename, mimetype }) {
-            // Allow only resume file types
-            const allowedExtensions = ['.pdf', '.docx', '.txt'];
-            if (name === 'resumes' && originalFilename) {
-              const ext = path.extname(originalFilename).toLowerCase();
-              return allowedExtensions.includes(ext);
-            }
-            return false;
-          }
+        // For Vercel environment, we'll return an error message indicating file uploads are not supported
+        // Vercel serverless functions have limitations with file uploads
+        return res.status(400).json({ 
+          message: "File upload is not supported in the deployed environment. Please use the development environment (npm run dev) for resume upload functionality.",
+          error: "Vercel serverless function limitation"
         });
-        
-        // Parse the form data
-        const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
-          form.parse(req, (err, fields, files) => {
-            if (err) {
-              console.error('Form parsing error:', err);
-              reject(err);
-            } else {
-              console.log('Form parsed successfully:', { fields, files });
-              resolve([fields, files]);
-            }
-          });
-        });
-        
-        const resumeFiles = Array.isArray(files.resumes) ? files.resumes : [files.resumes];
-        
-        if (!resumeFiles || resumeFiles.length === 0) {
-          return res.status(400).json({ message: "No files uploaded" });
-        }
-
-        const extractedCandidates: (ExtractedCandidate & { id: string })[] = [];
-        const processingErrors: string[] = [];
-
-        for (const file of resumeFiles) {
-          try {
-            if (!file || !file.filepath || !file.originalFilename) {
-              throw new Error('Invalid file data');
-            }
-            
-            // Read file buffer
-            const buffer = fs.readFileSync(file.filepath);
-            
-            // Parse the actual file content
-            const resumeText = await parseResumeFile(buffer, file.originalFilename);
-            
-            if (!resumeText || resumeText.trim().length < 50) {
-              throw new Error(`Insufficient text content extracted from ${file.originalFilename}`);
-            }
-
-            // Use AI to extract candidate data from the actual resume text
-            // For Vercel environment, we'll use a simplified extraction if AI fails
-            let extractedData;
-            try {
-              extractedData = await extractResumeData(resumeText);
-            } catch (aiError) {
-              console.error('AI extraction failed, using mock extraction:', aiError);
-              // Fallback to mock extraction
-              extractedData = {
-                name: 'Mock Candidate',
-                email: 'mock@example.com',
-                portfolio_link: [],
-                skills: ['JavaScript', 'React', 'Node.js'],
-                experience: [
-                  {
-                    job_title: 'Software Developer',
-                    company: 'Tech Corp',
-                    duration: '3 years',
-                    projects: [
-                      'Developed web applications',
-                      'Implemented RESTful APIs'
-                    ]
-                  }
-                ],
-                total_experience: '3 years',
-                summary: 'Mock candidate with experience in web development.'
-              };
-            }
-            
-            const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            // Validate that we got meaningful data
-            if (!extractedData || !extractedData.name) {
-              const errorMsg = `Failed to extract valid candidate data from ${file.originalFilename}`;
-              console.log(errorMsg);
-              throw new Error(errorMsg);
-            }
-            
-            // Ensure all required fields are present
-            const validatedExtractedData = {
-              name: extractedData.name || "Unknown",
-              email: extractedData.email || "",
-              portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
-              skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
-              experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
-              total_experience: extractedData.total_experience || "",
-              summary: extractedData.summary || "No summary available",
-              id: candidateId
-            };
-            
-            extractedCandidates.push(validatedExtractedData);
-
-          } catch (error) {
-            const errorMessage = `Error processing file ${file?.originalFilename || 'unknown'}: ${error}`;
-            console.error(errorMessage);
-            processingErrors.push(errorMessage);
-          } finally {
-            // Always clean up the temporary file
-            try {
-              if (file && file.filepath && fs.existsSync(file.filepath)) {
-                fs.unlinkSync(file.filepath);
-              }
-            } catch (cleanupError) {
-              console.error(`Failed to clean up file ${file?.filepath || 'unknown'}:`, cleanupError);
-            }
-          }
-        }
-
-        // Return results with any processing errors
-        const response: any = { candidates: extractedCandidates };
-        if (processingErrors.length > 0) {
-          response.errors = processingErrors;
-          response.message = `Processed ${extractedCandidates.length} of ${resumeFiles.length} files successfully`;
-        }
-
-        return res.status(200).json(response);
       } catch (error) {
         console.error('Error in resume upload:', error);
         return res.status(500).json({ 

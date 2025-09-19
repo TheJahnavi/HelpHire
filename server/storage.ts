@@ -73,7 +73,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   // Helper method to check if database is available
-  private checkDatabase(): NeonDatabase<typeof schema> {
+  private checkDatabase(): NeonDatabase<any> {
     if (!db) {
       console.error("Database connection is not available");
       throw new Error("Database connection is not available");
