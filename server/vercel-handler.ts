@@ -573,7 +573,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               candidateName: candidate.name,
               email: candidate.email,
               candidateSkills: candidate.skills,
-              candidateExperience: candidate.experience.years,
+              candidateExperience: JSON.stringify(candidate.experience),
               resumeUrl: `resume_${candidate.id}.txt`,
               status: 'resume_reviewed',
               jobId: parseInt(jobId),
