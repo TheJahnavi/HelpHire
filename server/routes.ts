@@ -846,13 +846,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`Extracted ${resumeText.length} characters from ${file.originalname}`);
           
           // Use Gemini AI to extract candidate data from the actual resume text
+          console.log(`Extracting data from resume text (${resumeText.length} chars):`, resumeText.substring(0, 200) + '...');
           const extractedData = await extractResumeData(resumeText);
           const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           
-          extractedCandidates.push({
-            ...extractedData,
+          console.log(`Extracted data for ${file.originalname}:`, extractedData);
+          
+          // Ensure all required fields are present
+          const validatedExtractedData = {
+            name: extractedData.name || "Unknown",
+            email: extractedData.email || "",
+            portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
+            skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+            experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+            total_experience: extractedData.total_experience || "",
+            summary: extractedData.summary || "No summary available",
             id: candidateId
-          });
+          };
+          
+          extractedCandidates.push(validatedExtractedData);
 
           console.log(`Successfully processed ${file.originalname} - Extracted: ${extractedData.name}`);
 
@@ -873,6 +885,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Log the extracted candidates being returned
+      console.log("Returning extracted candidates:", extractedCandidates);
+      
+      // Ensure we're sending a proper response
+      if (!Array.isArray(extractedCandidates)) {
+        console.error("Extracted candidates is not an array:", extractedCandidates);
+        return res.status(500).json({ message: "Internal server error: Invalid candidates format" });
+      }
       // Return results with any processing errors
       const response: any = { candidates: extractedCandidates };
       if (processingErrors.length > 0) {
@@ -910,8 +930,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const matchResults = [];
+      console.log(`Processing ${candidates.length} candidates for job:`, job);
+      
       for (const candidate of candidates) {
         try {
+          console.log(`Matching candidate:`, candidate);
           const matchResult = await calculateJobMatch(
             candidate,
             job.jobTitle,
@@ -921,10 +944,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             job.note || ''
           );
           
-          matchResults.push({
+          console.log(`Match result for ${candidate.name}:`, matchResult);
+          
+          // Ensure all required fields are present
+          const validatedMatchResult = {
             candidateId: candidate.id,
-            ...matchResult
-          });
+            candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
+            candidate_email: matchResult.candidate_email || candidate.email || "",
+            match_percentage: matchResult.match_percentage || 0,
+            strengths: Array.isArray(matchResult.strengths) ? matchResult.strengths : [],
+            areas_for_improvement: Array.isArray(matchResult.areas_for_improvement) ? matchResult.areas_for_improvement : []
+          };
+          
+          matchResults.push(validatedMatchResult);
         } catch (error) {
           console.error(`Error matching candidate ${candidate.id}:`, error);
           matchResults.push({
@@ -938,6 +970,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Log the match results being returned
+      console.log("Returning match results:", matchResults);
+      
+      // Ensure we're sending a proper response
+      if (!Array.isArray(matchResults)) {
+        console.error("Match results is not an array:", matchResults);
+        return res.status(500).json({ message: "Internal server error: Invalid match results format" });
+      }
+      
       res.json({ matches: matchResults });
     } catch (error) {
       console.error("Error in candidate matching:", error);
@@ -955,13 +996,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Job not found" });
       }
 
+      console.log(`Generating interview questions for candidate:`, candidate);
+      console.log(`Job data:`, job);
+      
       const questions = await generateInterviewQuestions(
         candidate,
         job.jobTitle,
         job.jobDescription || '',
         job.skills || []
       );
+      
+      console.log(`Generated questions:`, questions);
 
+      // Log the questions being returned
+      console.log("Returning interview questions:", questions);
+      
+      // Ensure we're sending a proper response
+      if (!questions || typeof questions !== 'object') {
+        console.error("Invalid questions format:", questions);
+        return res.status(500).json({ message: "Internal server error: Invalid questions format" });
+      }
       res.json({ questions });
     } catch (error) {
       console.error("Error generating interview questions:", error);
@@ -1009,6 +1063,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Job ID:", jobId);
       console.log("User ID:", actualUserId);
       console.log("Candidates data:", JSON.stringify(candidates, null, 2));
+      
+      // Validate input data
+      if (!Array.isArray(candidates)) {
+        console.error("Candidates is not an array:", candidates);
+        return res.status(400).json({ message: "Invalid candidates data format" });
+      }
+      
+      if (!jobId) {
+        console.error("Missing job ID");
+        return res.status(400).json({ message: "Job ID is required" });
+      }
 
       const addedCandidates = [];
       for (const candidate of candidates) {
@@ -1034,7 +1099,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             candidateName: candidate.name,
             email: candidate.email,
             candidateSkills: candidate.skills,
-            candidateExperience: candidate.experience.years,
+            candidateExperience: candidate.experience.length > 0 ? 
+              candidate.experience.reduce((total: number, exp: { duration: string }) => {
+                const yearsMatch = exp.duration.match(/(\d+)/);
+                return total + (yearsMatch ? parseInt(yearsMatch[1]) : 0);
+              }, 0) : 0,
             resumeUrl: `resume_${candidate.id}.txt`,
             status: 'resume_reviewed',
             jobId: parseInt(jobId),

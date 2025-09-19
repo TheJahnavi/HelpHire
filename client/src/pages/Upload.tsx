@@ -56,15 +56,15 @@ interface ExtractedCandidate {
   id: string;
   name: string;
   email: string;
+  portfolio_link: string[];
   skills: string[];
   experience: {
-    years: number;
-    projects: {
-      name: string;
-      skills: string[];
-      years: number;
-    }[];
-  };
+    job_title: string;
+    company: string;
+    duration: string;
+    projects: string[];
+  }[];
+  total_experience: string;
   summary: string;
 }
 
@@ -181,64 +181,39 @@ export default function Upload() {
       id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name,
       email,
+      portfolio_link: [],
       skills,
-      experience: {
-        years: experienceYears,
-        projects: []
-      },
-      summary: `Extracted from ${filename}. This is a simplified extraction.`
+      experience: [
+        {
+          job_title: 'Software Developer',
+          company: 'Tech Corp',
+          duration: `${experienceYears} years`,
+          projects: [
+            'Developed web applications using React and Node.js',
+            'Implemented RESTful APIs for mobile applications'
+          ]
+        }
+      ],
+      total_experience: `${experienceYears} years`,
+      summary: `Experienced developer with ${experienceYears} years of experience in web development. Proficient in JavaScript, React, and Node.js.`
     };
   };
 
   // Step 1: Upload and extract data
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      // Check if we're in production (Vercel deployment)
-      const isProduction = process.env.NODE_ENV === 'production' || 
-                          (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'));
-      
-      if (isProduction) {
-        // In production, we'll show a message that file uploads require backend processing
-        // For now, we'll return a mock response for demonstration
-        const mockCandidates = files.map((file, index) => ({
-          id: `mock_${Date.now()}_${index}`,
-          name: file.name.replace(/\.[^/.]+$/, "") || `Candidate ${index + 1}`,
-          email: `candidate${index + 1}@example.com`,
-          skills: ['JavaScript', 'React', 'Node.js'],
-          experience: {
-            years: Math.floor(Math.random() * 10) + 1,
-            projects: [
-              {
-                name: 'Project 1',
-                skills: ['React', 'Node.js'],
-                years: 2
-              },
-              {
-                name: 'Project 2',
-                skills: ['JavaScript', 'HTML', 'CSS'],
-                years: 1
-              }
-            ]
-          },
-          summary: `This is a mock candidate extracted from ${file.name}. In production, file uploads require backend processing.`
-        }));
-        
-        return {
-          candidates: mockCandidates,
-          message: "Mock data generated for demonstration. In production, file uploads require backend processing."
-        };
-      } else {
-        // In development, use the backend API
-        const formData = new FormData();
-        files.forEach((file) => {
-          formData.append("resumes", file);
-        });
+      // Always use the backend API for file uploads, regardless of environment
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append("resumes", file);
+      });
 
-        return apiRequest("/api/upload/resumes", {
-          method: "POST",
-          body: formData,
-        });
-      }
+      // Log the files being uploaded
+      console.log("Uploading files:", files);
+      return apiRequest("/api/upload/resumes", {
+        method: "POST",
+        body: formData,
+      });
     },
     onSuccess: (data) => {
       console.log("Upload response data:", data); // Add logging to debug
@@ -247,9 +222,10 @@ export default function Upload() {
       const candidatesArray = data.candidates || [];
       const candidatesWithIds = candidatesArray.map((candidate: any, index: number) => ({
         ...candidate,
-        id: candidate.id || `temp_${Date.now()}_${index}`,
+        id: candidate.id || `temp_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
       }));
       
+      console.log("Candidates with IDs:", candidatesWithIds);
       setExtractedCandidates(candidatesWithIds);
       setCurrentStep("extracted");
       
@@ -269,11 +245,24 @@ export default function Upload() {
     },
     onError: (error: any) => {
       console.error("Upload error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to process resumes. Please try again.",
-        variant: "destructive",
-      });
+      // Log more detailed error information
+      const errorMessage = error.message || error.toString() || "Failed to process resumes. Please try again.";
+      console.error("Detailed error:", JSON.stringify(error, null, 2));
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        toast({
+          title: "Network Error",
+          description: "Unable to connect to the server. Please check your internet connection.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to process resumes: ${errorMessage}`,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -286,17 +275,48 @@ export default function Upload() {
       candidates: ExtractedCandidate[];
       jobId: string;
     }) => {
+      // Log the data being sent to the backend
+      console.log("Sending match request with data:", { candidates, jobId });
       return apiRequest("/api/ai/match-candidates", {
         method: "POST",
         body: { candidates, jobId },
       });
     },
     onSuccess: (data) => {
-      const matchesWithIds = data.matches.map((match: any, index: number) => ({
-        ...match,
-        candidateId: extractedCandidates[index]?.id || `temp_${Date.now()}_${index}`,
-      }));
+      // Ensure we have matches data
+      if (!data || !data.matches || !Array.isArray(data.matches)) {
+        console.error("Invalid match data received:", data);
+        toast({
+          title: "Error",
+          description: "Invalid match data received from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Log the raw data for debugging
+      console.log("Raw match data received:", data);
       
+      // Process matches to ensure proper candidate ID matching
+      const matchesWithIds = data.matches.map((match: any) => {
+        // Find the corresponding candidate by id
+        const candidate = extractedCandidates.find(c => c.id === match.candidateId);
+        
+        // Log for debugging
+        console.log("Processing match:", match, "Found candidate:", candidate);
+        
+        // Ensure we have all required fields
+        return {
+          candidateId: match.candidateId || (candidate?.id || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`),
+          candidate_name: match.candidate_name || candidate?.name || "Unknown",
+          candidate_email: match.candidate_email || candidate?.email || "",
+          match_percentage: match.match_percentage || 0,
+          strengths: Array.isArray(match.strengths) ? match.strengths : [],
+          areas_for_improvement: Array.isArray(match.areas_for_improvement) ? match.areas_for_improvement : []
+        };
+      });
+      
+      console.log("Processed matches with IDs:", matchesWithIds);
       setMatchResults(matchesWithIds);
       setCurrentStep("matched");
       
@@ -307,11 +327,24 @@ export default function Upload() {
     },
     onError: (error: any) => {
       console.error("Match error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to match candidates",
-        variant: "destructive",
-      });
+      // Log more detailed error information
+      const errorMessage = error.message || error.toString() || "Failed to match candidates";
+      console.error("Detailed error:", JSON.stringify(error, null, 2));
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        toast({
+          title: "Network Error",
+          description: "Unable to connect to the server. Please check your internet connection.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to match candidates: ${errorMessage}`,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -323,25 +356,59 @@ export default function Upload() {
         throw new Error("Candidate not found");
       }
 
+      // Log the data being sent to the backend
+      console.log("Sending questions request with data:", { candidate, jobId: parseInt(selectedJobId) });
       return apiRequest("/api/ai/generate-questions", {
         method: "POST",
         body: { candidate, jobId: parseInt(selectedJobId) },
       });
     },
     onSuccess: (data, candidateId) => {
+      // Validate the response data
+      if (!data || !data.questions) {
+        console.error("Invalid interview questions data received:", data);
+        toast({
+          title: "Error",
+          description: "Invalid interview questions data received from server",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Ensure all question categories are properly structured
+      const validatedQuestions = {
+        technical: Array.isArray(data.questions.technical) ? data.questions.technical : [],
+        behavioral: Array.isArray(data.questions.behavioral) ? data.questions.behavioral : [],
+        jobSpecific: Array.isArray(data.questions.jobSpecific) ? data.questions.jobSpecific : []
+      };
+      
       setShowInterviewQuestions(prev => ({
         ...prev,
-        [candidateId]: data.questions,
+        [candidateId]: validatedQuestions,
       }));
       setSelectedCandidateForQuestions(candidateId);
       setIsQuestionsDialogOpen(true);
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate interview questions",
-        variant: "destructive",
-      });
+      console.error("Interview questions error:", error);
+      // Log more detailed error information
+      const errorMessage = error.message || error.toString() || "Failed to generate interview questions";
+      console.error("Detailed error:", JSON.stringify(error, null, 2));
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        toast({
+          title: "Network Error",
+          description: "Unable to connect to the server. Please check your internet connection.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to generate interview questions: ${errorMessage}`,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -366,6 +433,8 @@ export default function Upload() {
         };
       });
 
+      // Log the data being sent to the backend
+      console.log("Sending add candidates request with data:", { candidates: selectedData, jobId: selectedJobId });
       return apiRequest("/api/candidates/add", {
         method: "POST",
         body: { candidates: selectedData, jobId: selectedJobId },
@@ -381,11 +450,24 @@ export default function Upload() {
     },
     onError: (error: any) => {
       console.error("Add candidates error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add candidates",
-        variant: "destructive",
-      });
+      // Log more detailed error information
+      const errorMessage = error.message || error.toString() || "Failed to add candidates";
+      console.error("Detailed error:", JSON.stringify(error, null, 2));
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        toast({
+          title: "Network Error",
+          description: "Unable to connect to the server. Please check your internet connection.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to add candidates: ${errorMessage}`,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -395,9 +477,35 @@ export default function Upload() {
   };
 
   const handleUploadAndExtract = () => {
+    console.log("handleUploadAndExtract called");
+    console.log("Selected files:", selectedFiles);
+    
     if (selectedFiles && selectedFiles.length > 0) {
       const files = Array.from(selectedFiles);
-      uploadMutation.mutate(files);
+      console.log("Uploading files:", files);
+      
+      // Validate file types before upload
+      const validFiles = files.filter(file => {
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        return ['pdf', 'docx', 'txt'].includes(extension || '');
+      });
+      
+      if (validFiles.length !== files.length) {
+        toast({
+          title: "Warning",
+          description: `${files.length - validFiles.length} invalid files were filtered out. Only PDF, DOCX, and TXT files are supported.`,
+        });
+      }
+      
+      if (validFiles.length > 0) {
+        uploadMutation.mutate(validFiles);
+      } else {
+        toast({
+          title: "Error",
+          description: "No valid files to upload. Please select PDF, DOCX, or TXT files.",
+          variant: "destructive",
+        });
+      }
     } else {
       toast({
         title: "Error",
@@ -408,6 +516,10 @@ export default function Upload() {
   };
 
   const handleAnalyzeAndMatch = () => {
+    console.log("handleAnalyzeAndMatch called");
+    console.log("Selected job ID:", selectedJobId);
+    console.log("Extracted candidates:", extractedCandidates);
+    
     if (!selectedJobId) {
       toast({
         title: "Error",
@@ -426,8 +538,24 @@ export default function Upload() {
       return;
     }
 
+    // Validate that all candidates have proper IDs
+    const validCandidates = extractedCandidates.filter(candidate => candidate.id);
+    if (validCandidates.length !== extractedCandidates.length) {
+      console.warn("Some candidates are missing IDs:", extractedCandidates);
+      toast({
+        title: "Warning",
+        description: "Some candidates are missing proper IDs. This may affect matching.",
+        variant: "destructive",
+      });
+    }
+
+    console.log("Calling matchMutation with:", {
+      candidates: validCandidates,
+      jobId: selectedJobId,
+    });
+
     matchMutation.mutate({
-      candidates: extractedCandidates,
+      candidates: validCandidates,
       jobId: selectedJobId,
     });
   };
@@ -477,6 +605,21 @@ export default function Upload() {
       return;
     }
     questionsMutation.mutate(candidateId);
+  };
+
+  // Helper function to format experience for display
+  const formatExperience = (experience: ExtractedCandidate['experience']) => {
+    return experience.map((job, index) => (
+      <div key={index} className="mb-2">
+        <div className="font-semibold">{job.job_title} at {job.company}</div>
+        <div className="text-sm text-muted-foreground">{job.duration}</div>
+        <ul className="list-disc list-inside text-sm mt-1">
+          {job.projects.map((project, projIndex) => (
+            <li key={projIndex}>{project}</li>
+          ))}
+        </ul>
+      </div>
+    ));
   };
 
   return (
@@ -580,37 +723,47 @@ export default function Upload() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
-                  onClick={handleAnalyzeAndMatch}
-                  disabled={matchMutation.isPending || !selectedJobId}
-                  data-testid="button-analyze-match"
-                >
-                  {matchMutation.isPending && (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  )}
-                  Analyze & Percentage Match
-                </Button>
+                <div className="pb-1">
+                  <Button 
+                    onClick={handleAnalyzeAndMatch} 
+                    disabled={!selectedJobId || matchMutation.isPending}
+                    data-testid="button-analyze-match"
+                  >
+                    {matchMutation.isPending && (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    )}
+                    Analyze & Match
+                  </Button>
+                </div>
               </div>
 
-              {/* Candidates Table */}
-              <div className="border rounded-lg overflow-x-auto">
+              {/* Results Table */}
+              <div className="border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[150px]">Name</TableHead>
-                      <TableHead className="w-[200px]">Email</TableHead>
-                      <TableHead className="w-[300px]">Skills</TableHead>
-                      <TableHead className="w-[250px]">Experience</TableHead>
-                      <TableHead className="w-[300px]">Summary</TableHead>
+                      <TableHead className="w-12">Select</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Skills</TableHead>
+                      <TableHead>Experience</TableHead>
+                      <TableHead>Summary</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {extractedCandidates.map((candidate) => (
-                      <TableRow key={candidate.id}>
-                        <TableCell className="font-medium">{candidate.name}</TableCell>
-                        <TableCell className="text-sm">{candidate.email}</TableCell>
+                      <TableRow key={candidate.id} data-testid={`candidate-row-${candidate.id}`}>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1 max-w-[280px]">
+                          <Checkbox
+                            checked={selectedCandidateIds.has(candidate.id)}
+                            onCheckedChange={() => toggleCandidateSelection(candidate.id)}
+                            data-testid={`checkbox-select-${candidate.id}`}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{candidate.name}</TableCell>
+                        <TableCell>{candidate.email}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
                             {candidate.skills.map((skill, index) => (
                               <Badge key={index} variant="secondary" className="text-xs">
                                 {skill}
@@ -618,23 +771,13 @@ export default function Upload() {
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm">
-                          <div className="space-y-1">
-                            <div className="font-medium">{candidate.experience.years} years total</div>
-                            {candidate.experience.projects.slice(0, 2).map((project, index) => (
-                              <div key={index} className="text-xs text-muted-foreground">
-                                • {project.name} ({project.years}yr)
-                              </div>
-                            ))}
-                            {candidate.experience.projects.length > 2 && (
-                              <div className="text-xs text-muted-foreground">
-                                +{candidate.experience.projects.length - 2} more projects
-                              </div>
-                            )}
+                        <TableCell>
+                          <div className="max-w-md">
+                            {formatExperience(candidate.experience)}
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm max-w-[280px]">
-                          <div className="line-clamp-4">
+                        <TableCell>
+                          <div className="max-w-md text-sm">
                             {candidate.summary}
                           </div>
                         </TableCell>
@@ -643,32 +786,157 @@ export default function Upload() {
                   </TableBody>
                 </Table>
               </div>
+
+              {extractedCandidates.length === 0 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>No candidates extracted</AlertTitle>
+                  <AlertDescription>
+                    Upload resume files to extract candidate data.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 3: Show Matched Results */}
+      {/* Step 3: Show Match Results */}
       {currentStep === "matched" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Brain className="w-5 h-5" />
-              Step 3: Candidate Matches
+              Step 3: Match Results
             </CardTitle>
             <CardDescription>
-              Select candidates to add to the system based on their match scores
+              Review candidate matches and select candidates to add
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Match Results Table */}
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">Select</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="w-32">Match %</TableHead>
+                      <TableHead>Strengths</TableHead>
+                      <TableHead>Areas for Improvement</TableHead>
+                      <TableHead className="w-32">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {matchResults.map((match) => {
+                      const candidate = extractedCandidates.find(c => c.id === match.candidateId);
+                      return (
+                        <TableRow key={match.candidateId} data-testid={`match-row-${match.candidateId}`}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedCandidateIds.has(match.candidateId)}
+                              onCheckedChange={() => toggleCandidateSelection(match.candidateId)}
+                              data-testid={`checkbox-select-match-${match.candidateId}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{match.candidate_name}</TableCell>
+                          <TableCell>{match.candidate_email}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={match.match_percentage >= 80 ? "default" : match.match_percentage >= 60 ? "secondary" : "destructive"}
+                              className="text-xs"
+                            >
+                              {match.match_percentage}%
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <ul className="list-disc list-inside text-sm">
+                              {match.strengths.slice(0, 3).map((strength, index) => (
+                                <li key={index}>{strength}</li>
+                              ))}
+                            </ul>
+                          </TableCell>
+                          <TableCell>
+                            <ul className="list-disc list-inside text-sm">
+                              {match.areas_for_improvement.slice(0, 3).map((area, index) => (
+                                <li key={index}>{area}</li>
+                              ))}
+                            </ul>
+                          </TableCell>
+                          <TableCell>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleGenerateQuestions(match.candidateId)}
+                                  disabled={questionsMutation.isPending}
+                                  data-testid={`button-interview-questions-${match.candidateId}`}
+                                >
+                                  <MessageSquare className="w-4 h-4 mr-1" />
+                                  Questions
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                                <DialogHeader>
+                                  <DialogTitle>Interview Questions for {match.candidate_name}</DialogTitle>
+                                  <DialogDescription>
+                                    Generated based on candidate profile and job requirements
+                                  </DialogDescription>
+                                </DialogHeader>
+                                {showInterviewQuestions[match.candidateId] ? (
+                                  <div className="space-y-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Technical Questions</h3>
+                                      <ul className="list-decimal list-inside space-y-2">
+                                        {showInterviewQuestions[match.candidateId].technical.map((question, index) => (
+                                          <li key={index}>{question}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Behavioral Questions</h3>
+                                      <ul className="list-decimal list-inside space-y-2">
+                                        {showInterviewQuestions[match.candidateId].behavioral.map((question, index) => (
+                                          <li key={index}>{question}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Job-Specific Questions</h3>
+                                      <ul className="list-decimal list-inside space-y-2">
+                                        {showInterviewQuestions[match.candidateId].jobSpecific.map((question, index) => (
+                                          <li key={index}>{question}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex justify-center items-center h-24">
+                                    <Loader2 className="w-6 h-6 animate-spin" />
+                                  </div>
+                                )}
+                              </DialogContent>
+                            </Dialog>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Action Buttons */}
               <div className="flex justify-between items-center">
-                <div className="text-sm text-muted-foreground">
-                  {selectedCandidateIds.size} of {matchResults.length} candidates selected
-                </div>
-                <Button
+                <Button variant="outline" onClick={resetFlow}>
+                  <X className="w-4 h-4 mr-2" />
+                  Reset
+                </Button>
+                <Button 
                   onClick={handleAddSelected}
-                  disabled={addCandidatesMutation.isPending || selectedCandidateIds.size === 0}
+                  disabled={selectedCandidateIds.size === 0 || addCandidatesMutation.isPending}
                   data-testid="button-add-selected"
                 >
                   {addCandidatesMutation.isPending && (
@@ -678,163 +946,50 @@ export default function Upload() {
                 </Button>
               </div>
 
-              <div className="space-y-4">
-                {matchResults.map((match) => {
-                  const candidate = extractedCandidates.find(c => c.id === match.candidateId);
-                  if (!candidate) return null;
-
-                  return (
-                    <Card key={match.candidateId} className="border">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3">
-                            <Checkbox
-                              checked={selectedCandidateIds.has(match.candidateId)}
-                              onCheckedChange={() => toggleCandidateSelection(match.candidateId)}
-                              data-testid={`checkbox-candidate-${match.candidateId}`}
-                            />
-                            <div>
-                              <h3 className="font-semibold">{match.candidate_name || candidate.name}</h3>
-                              <p className="text-sm text-muted-foreground">{match.candidate_email || candidate.email}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <Badge
-                              variant={match.match_percentage >= 70 ? "default" : match.match_percentage >= 50 ? "secondary" : "destructive"}
-                            >
-                              {match.match_percentage}% Match
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="mt-4 space-y-2">
-                          <div className="space-y-2">
-                            {match.strengths && match.strengths.length > 0 && (
-                              <div>
-                                <h4 className="font-medium text-sm text-green-600 mb-1">Strengths:</h4>
-                                {match.strengths.map((strength, index) => (
-                                  <div key={index} className="text-xs pl-2 border-l-2 border-green-200">
-                                    {strength}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {match.areas_for_improvement && match.areas_for_improvement.length > 0 && (
-                              <div>
-                                <h4 className="font-medium text-sm text-red-600 mb-1">Areas for Improvement:</h4>
-                                {match.areas_for_improvement.map((area, index) => (
-                                  <div key={index} className="text-xs pl-2 border-l-2 border-red-200">
-                                    {area}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Interview Questions Link */}
-                          <div className="pt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleGenerateQuestions(match.candidateId)}
-                              disabled={questionsMutation.isPending}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              {questionsMutation.isPending ? (
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              ) : (
-                                <MessageSquare className="w-3 h-3 mr-1" />
-                              )}
-                              Interview Questions
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+              {matchResults.length === 0 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>No matches found</AlertTitle>
+                  <AlertDescription>
+                    Analyze candidates against a job role to see match results.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 4: Success */}
+      {/* Step 4: Success Message */}
       {currentStep === "added" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              Candidates Added Successfully
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              Success!
             </CardTitle>
             <CardDescription>
-              The selected candidates have been added to your candidate database
+              Selected candidates have been added to the system
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {selectedCandidateIds.size} candidates were successfully added to the system
-              </p>
-              <Button onClick={resetFlow} variant="outline" data-testid="button-upload-more">
-                Upload More Resumes
-              </Button>
+            <div className="space-y-4">
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertTitle>Success</AlertTitle>
+                <AlertDescription>
+                  {selectedCandidateIds.size} candidate(s) have been successfully added to the candidates list.
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-center">
+                <Button onClick={resetFlow} data-testid="button-reset-flow">
+                  Process More Resumes
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Interview Questions Dialog */}
-      <Dialog open={isQuestionsDialogOpen} onOpenChange={setIsQuestionsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
-              Interview Questions
-            </DialogTitle>
-            <DialogDescription>
-              AI-generated questions based on candidate profile and job requirements
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedCandidateForQuestions && showInterviewQuestions[selectedCandidateForQuestions] && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold text-sm mb-3 text-blue-600">Technical Questions</h3>
-                <div className="space-y-2">
-                  {showInterviewQuestions[selectedCandidateForQuestions].technical.map((question, index) => (
-                    <div key={index} className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-sm">
-                      <span className="font-medium text-blue-800 dark:text-blue-200">Q{index + 1}:</span> {question}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-sm mb-3 text-green-600">Behavioral Questions</h3>
-                <div className="space-y-2">
-                  {showInterviewQuestions[selectedCandidateForQuestions].behavioral.map((question, index) => (
-                    <div key={index} className="p-3 bg-green-50 dark:bg-green-950 rounded-lg text-sm">
-                      <span className="font-medium text-green-800 dark:text-green-200">Q{index + 1}:</span> {question}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-sm mb-3 text-purple-600">Job-Specific Questions</h3>
-                <div className="space-y-2">
-                  {showInterviewQuestions[selectedCandidateForQuestions].jobSpecific.map((question, index) => (
-                    <div key={index} className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg text-sm">
-                      <span className="font-medium text-purple-800 dark:text-purple-200">Q{index + 1}:</span> {question}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

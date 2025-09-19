@@ -21,8 +21,15 @@ export interface ExperienceData {
 export interface ExtractedCandidate {
   name: string;
   email: string;
+  portfolio_link: string[];
   skills: string[];
-  experience: ExperienceData;
+  experience: {
+    job_title: string;
+    company: string;
+    duration: string;
+    projects: string[];
+  }[];
+  total_experience: string;
   summary: string;
 }
 
@@ -180,40 +187,13 @@ Return only valid JSON, no additional text.
     // Parse and validate the response
     const parsedData = JSON.parse(cleanedResponse);
     
-    // Transform the new experience structure to match our interface
-    let totalExperienceYears = 0;
-    if (Array.isArray(parsedData.experience)) {
-      totalExperienceYears = parsedData.experience.reduce((total: number, job: any) => {
-        // Try to extract years from duration string
-        if (job.duration) {
-          const durationMatch = job.duration.match(/(\d+)\s*(yr|year|years?)/i);
-          if (durationMatch) {
-            return total + parseInt(durationMatch[1], 10);
-          }
-        }
-        return total;
-      }, 0);
-    }
-    
-    // Convert to our expected format
-    const experience: ExperienceData = {
-      years: parsedData.total_experience ? 
-        parseInt(parsedData.total_experience.toString().match(/\d+/)?.[0] || '0', 10) : 
-        totalExperienceYears,
-      projects: Array.isArray(parsedData.experience) ? 
-        parsedData.experience.map((job: any) => ({
-          name: job.job_title || 'Unknown Position',
-          skills: job.skills || [],
-          years: job.duration ? 
-            parseInt(job.duration.toString().match(/\d+/)?.[0] || '0', 10) : 0
-        })) : []
-    };
-    
     return {
       name: parsedData.name || "Unknown",
       email: parsedData.email || "",
+      portfolio_link: Array.isArray(parsedData.portfolio_link) ? parsedData.portfolio_link : [],
       skills: Array.isArray(parsedData.skills) ? parsedData.skills : [],
-      experience: experience,
+      experience: Array.isArray(parsedData.experience) ? parsedData.experience : [],
+      total_experience: parsedData.total_experience || "",
       summary: parsedData.summary || "No summary available"
     };
   } catch (error) {
@@ -278,11 +258,15 @@ Candidate Data:
 {
   "name": "${candidate.name}",
   "email": "${candidate.email}",
-  "skills": [${candidate.skills.map(s => `"${s}"`).join(', ')}],
-  "experience": {
-    "years": ${candidate.experience.years},
-    "projects": [${candidate.experience.projects.map(p => `{"name": "${p.name}", "skills": [${p.skills.map(s => `"${s}"`).join(', ')}], "years": ${p.years}}`).join(', ')}]
-  },
+  "portfolio_link": [${(candidate.portfolio_link || []).map(link => `"${link}"`).join(', ')}],
+  "skills": [${(candidate.skills || []).map(s => `"${s}"`).join(', ')}],
+  "experience": [${(candidate.experience || []).map(job => `{
+    "job_title": "${job.job_title}",
+    "company": "${job.company}",
+    "duration": "${job.duration}",
+    "projects": [${(job.projects || []).map(p => `"${p}"`).join(', ')}]
+  }`).join(',')}],
+  "total_experience": "${candidate.total_experience}",
   "summary": "${candidate.summary}"
 }
 
@@ -394,11 +378,15 @@ Candidate Data:
 {
   "name": "${candidate.name}",
   "email": "${candidate.email}",
-  "skills": [${candidate.skills.map(s => `"${s}"`).join(', ')}],
-  "experience": {
-    "years": ${candidate.experience.years},
-    "projects": [${candidate.experience.projects.map(p => `{"name": "${p.name}", "skills": [${p.skills.map(s => `"${s}"`).join(', ')}], "years": ${p.years}}`).join(', ')}]
-  },
+  "portfolio_link": [${(candidate.portfolio_link || []).map(link => `"${link}"`).join(', ')}],
+  "skills": [${(candidate.skills || []).map(s => `"${s}"`).join(', ')}],
+  "experience": [${(candidate.experience || []).map(job => `{
+    "job_title": "${job.job_title}",
+    "company": "${job.company}",
+    "duration": "${job.duration}",
+    "projects": [${(job.projects || []).map(p => `"${p}"`).join(', ')}]
+  }`).join(',')}],
+  "total_experience": "${candidate.total_experience}",
   "summary": "${candidate.summary}"
 }
 
