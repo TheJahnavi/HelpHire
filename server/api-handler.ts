@@ -201,9 +201,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else if (url === '/api/jobs' && method === 'POST') {
       try {
-        console.log("Request body:", req.body);
-        console.log("User details:", { userId: user.id, companyId: user.companyId });
-        
         // Validate required fields
         if (!req.body.jobTitle || !req.body.jobDescription) {
           return res.status(400).json({ message: "Job title and description are required" });
@@ -215,8 +212,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           companyId: user.companyId,
           hrHandlingUserId: user.id, // Also set HR handling user
         });
-        
-        console.log("Parsed job data:", jobData);
         
         const job = await storage.createJob(jobData);
 
@@ -385,12 +380,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle resume upload and analysis
     else if (url === '/api/upload/resumes' && method === 'POST') {
       try {
-        console.log("Handling resume upload request");
-        console.log("Request headers:", req.headers);
-        console.log("Content-Type:", req.headers['content-type']);
-        console.log("Request body:", req.body);
-        console.log("Request files:", (req as any).files);
-        
         // In Vercel serverless functions, we can't directly access files from multipart form data
         // The request body will contain the file data if it's been parsed by Vercel
         // For now, we'll return a more informative error message
@@ -399,11 +388,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           details: "Vercel serverless functions do not support direct file upload handling. Please use the development server for file uploads, or implement a client-side file processing solution."
         });
       } catch (error) {
-        console.error("Error in resume upload:", error);
-        return res.status(500).json({ 
-          message: "Failed to process resumes",
-          error: error instanceof Error ? error.message : "Unknown error occurred"
-        });
+        console.error("Error handling resume upload:", error);
+        return res.status(500).json({ message: "Failed to handle resume upload" });
       }
     }
     

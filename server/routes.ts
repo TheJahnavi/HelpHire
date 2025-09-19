@@ -516,8 +516,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hrHandlingUserId: sessionUser.id, // Also set HR handling user
       });
       
-      console.log("Parsed job data:", jobData);
-      
       const job = await storage.createJob(jobData);
 
       // Create notification for all company users about new job
@@ -1156,23 +1154,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const file of files) {
         try {
-          console.log(`Processing file: ${file.originalname} (${file.mimetype})`);
-          
           // Parse the actual file content
           const resumeText = await parseResumeFile(file);
           
           if (!resumeText || resumeText.trim().length < 50) {
             throw new Error(`Insufficient text content extracted from ${file.originalname}`);
           }
-
-          console.log(`Extracted ${resumeText.length} characters from ${file.originalname}`);
           
           // Use Gemini AI to extract candidate data from the actual resume text
-          console.log(`Extracting data from resume text (${resumeText.length} chars):`, resumeText.substring(0, 200) + '...');
           const extractedData = await extractResumeData(resumeText);
           const candidateId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          
-          console.log(`Extracted data for ${file.originalname}:`, extractedData);
           
           // Validate that we got meaningful data
           if (!extractedData || !extractedData.name) {
@@ -1195,8 +1186,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           extractedCandidates.push(validatedExtractedData);
 
-          console.log(`Successfully processed ${file.originalname} - Extracted: ${extractedData.name}`);
-
         } catch (error) {
           const errorMessage = `Error processing file ${file.originalname}: ${error}`;
           console.error(errorMessage);
@@ -1206,16 +1195,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             if (fs.existsSync(file.path)) {
               fs.unlinkSync(file.path);
-              console.log(`Cleaned up temporary file: ${file.path}`);
             }
           } catch (cleanupError) {
             console.error(`Failed to clean up file ${file.path}:`, cleanupError);
           }
         }
       }
-
-      // Log the extracted candidates being returned
-      console.log("Returning extracted candidates:", extractedCandidates);
       
       // Ensure we're sending a proper response
       if (!Array.isArray(extractedCandidates)) {
@@ -1259,11 +1244,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const matchResults = [];
-      console.log(`Processing ${candidates.length} candidates for job:`, job);
       
       for (const candidate of candidates) {
         try {
-          console.log(`Matching candidate:`, candidate);
           const matchResult = await calculateJobMatch(
             candidate,
             job.jobTitle,
@@ -1272,8 +1255,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             job.experience || '',
             job.note || ''
           );
-          
-          console.log(`Match result for ${candidate.name}:`, matchResult);
           
           // Validate that we got a proper match result
           if (!matchResult || typeof matchResult !== 'object') {
@@ -1305,9 +1286,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-
-      // Log the match results being returned
-      console.log("Returning match results:", matchResults);
       
       // Ensure we're sending a proper response
       if (!Array.isArray(matchResults)) {
@@ -1331,9 +1309,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!job) {
         return res.status(404).json({ message: "Job not found" });
       }
-
-      console.log(`Generating interview questions for candidate:`, candidate);
-      console.log(`Job data:`, job);
       
       const questions = await generateInterviewQuestions(
         candidate,
@@ -1342,17 +1317,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         job.skills || []
       );
       
-      console.log(`Generated questions:`, questions);
-      
       // Validate that we got proper questions
       if (!questions || typeof questions !== 'object') {
         const errorMsg = `Failed to generate valid interview questions`;
         console.log(errorMsg);
         throw new Error(errorMsg);
       }
-
-      // Log the questions being returned
-      console.log("Returning interview questions:", questions);
       
       // Ensure we're sending a proper response
       if (!questions || typeof questions !== 'object') {
@@ -1444,12 +1414,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         actualUserId = 'test-user-id';
       }
       
-      console.log("=== DEBUG: Adding Candidates to Database ===");
-      console.log("Number of candidates:", candidates.length);
-      console.log("Job ID:", jobId);
-      console.log("User ID:", actualUserId);
-      console.log("Candidates data:", JSON.stringify(candidates, null, 2));
-      
       // Validate input data
       if (!Array.isArray(candidates)) {
         console.error("Candidates is not an array:", candidates);
@@ -1464,23 +1428,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const addedCandidates = [];
       for (const candidate of candidates) {
         try {
-          console.log(`\n--- Processing candidate: ${candidate.name} ---`);
-          console.log("Candidate data structure:", {
-            id: candidate.id,
-            candidate_name: candidate.name,
-            email: candidate.email,
-            job_id: parseInt(jobId),
-            candidate_skills: candidate.skills,
-            candidate_experience: JSON.stringify(candidate.experience),
-            match_percentage: candidate.matchPercentage || null,
-            status: 'resume_reviewed',
-            resume_url: `resume_${candidate.id}.txt`,
-            hr_handling_user_id: actualUserId,
-            report_link: null,
-            interview_link: null,
-            created_at: new Date()
-          });
-
           const candidateData = insertCandidateSchema.parse({
             candidateName: candidate.name,
             email: candidate.email,

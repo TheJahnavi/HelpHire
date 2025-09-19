@@ -451,7 +451,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Validate that we got a proper match result
             if (!matchResult || typeof matchResult !== 'object') {
               const errorMsg = `Failed to get valid match result for candidate ${candidate.name}`;
-              console.log(errorMsg);
               throw new Error(errorMsg);
             }
             
@@ -509,7 +508,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Validate that we got proper questions
         if (!questions || typeof questions !== 'object') {
           const errorMsg = `Failed to generate valid interview questions`;
-          console.log(errorMsg);
           throw new Error(errorMsg);
         }
 
@@ -542,33 +540,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (url === '/api/candidates/add' && method === 'POST') {
       try {
         const { candidates, jobId } = req.body;
-        
-        console.log("=== DEBUG: Adding Candidates to Database ===");
-        console.log("Number of candidates:", candidates.length);
-        console.log("Job ID:", jobId);
-        console.log("User ID:", userId);
-        console.log("Candidates data:", JSON.stringify(candidates, null, 2));
 
         const addedCandidates = [];
         for (const candidate of candidates) {
           try {
-            console.log(`\n--- Processing candidate: ${candidate.name} ---`);
-            console.log("Candidate data structure:", {
-              id: candidate.id,
-              candidate_name: candidate.name,
-              email: candidate.email,
-              job_id: parseInt(jobId),
-              candidate_skills: candidate.skills,
-              candidate_experience: JSON.stringify(candidate.experience),
-              match_percentage: candidate.matchPercentage || null,
-              status: 'resume_reviewed',
-              resume_url: `resume_${candidate.id}.txt`,
-              hr_handling_user_id: userId,
-              report_link: null,
-              interview_link: null,
-              created_at: new Date()
-            });
-
             const candidateData = insertCandidateSchema.parse({
               candidateName: candidate.name,
               email: candidate.email,
@@ -587,13 +562,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const addedCandidate = await storage.createCandidate(candidateData);
             addedCandidates.push(addedCandidate);
             
-            console.log(`✓ Successfully added candidate: ${candidate.name}`);
           } catch (error) {
-            console.error(`✗ Error adding candidate ${candidate.name}:`, error);
+            console.error(`Error adding candidate ${candidate.name}:`, error);
           }
         }
-
-        console.log(`\n=== FINAL RESULT: Added ${addedCandidates.length}/${candidates.length} candidates ===`);
 
         // Create notification for all company users about new candidates
         if (addedCandidates.length > 0) {
