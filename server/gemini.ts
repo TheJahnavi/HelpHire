@@ -200,7 +200,7 @@ export async function extractResumeData(resumeText: string): Promise<ExtractedCa
 **Resume Content:**
 ${resumeText}
 
-**IMPORTANT:** Return ONLY valid JSON with the exact structure shown above. Ensure temperature=0.0 for maximum determinism. Do not include any additional text, markdown, or explanations in your response. Only return the JSON object.`;
+**IMPORTANT:** Return ONLY valid JSON with the exact structure shown above. Ensure temperature=0.0 for maximum determinism. Do not include any additional text, explanations, or explanations in your response. Only return the JSON object.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -269,6 +269,58 @@ function fallbackExtractResumeData(resumeText: string): ExtractedCandidate {
     resumeText.toLowerCase().includes(skill.toLowerCase())
   );
   
+  // Extract experience details
+  const experience: ExtractedCandidate['experience'] = [];
+  
+  // Look for experience patterns like "Job Title | Company | Duration"
+  const experiencePattern = /([A-Za-z\s]+)\s*\|\s*([A-Za-z\s]+)\s*\|\s*([\d\s\-–—]+(?:\s*(?:year|yr)s?)?)/gi;
+  let match;
+  while ((match = experiencePattern.exec(resumeText)) !== null) {
+    const [, jobTitle, company, duration] = match;
+    experience.push({
+      job_title: jobTitle.trim(),
+      company: company.trim(),
+      duration: duration.trim(),
+      projects: []
+    });
+  }
+  
+  // If no structured experience found, try to extract from bulleted lists
+  if (experience.length === 0) {
+    // Look for job titles and companies in separate lines
+    const jobTitlePattern = /(Senior|Lead|Principal|Junior|Entry[-\s]Level)?\s*(Software\s+Engineer|Developer|Programmer|QA\s+Engineer|Tester|Analyst|Manager|Specialist|Consultant|Architect)/gi;
+    const companyPattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(Inc\.?|Corp\.?|Ltd\.?|LLC\.?|Corporation|Company|Solutions|Technologies|Labs)/g;
+    
+    let jobMatches = [];
+    let companyMatches = [];
+    
+    let jobMatch;
+    while ((jobMatch = jobTitlePattern.exec(resumeText)) !== null) {
+      jobMatches.push({
+        title: jobMatch[0],
+        index: jobMatch.index
+      });
+    }
+    
+    let companyMatch;
+    while ((companyMatch = companyPattern.exec(resumeText)) !== null) {
+      companyMatches.push({
+        name: companyMatch[0],
+        index: companyMatch.index
+      });
+    }
+    
+    // Pair job titles with companies based on proximity
+    for (let i = 0; i < Math.min(jobMatches.length, companyMatches.length); i++) {
+      experience.push({
+        job_title: jobMatches[i]?.title || "Unknown Position",
+        company: companyMatches[i]?.name || "Unknown Company",
+        duration: "Not specified",
+        projects: []
+      });
+    }
+  }
+  
   // Extract experience years (simple pattern matching)
   const experienceMatches = resumeText.match(/(\d+)\s*(?:year|yr)s?/gi);
   let totalExperience = "0 years total";
@@ -281,14 +333,29 @@ function fallbackExtractResumeData(resumeText: string): ExtractedCandidate {
     }
   }
   
+  // Extract summary (look for PROFESSIONAL SUMMARY or similar)
+  let summary = "Extracted using fallback method due to AI service unavailability.";
+  const summaryPattern = /(PROFESSIONAL\s+SUMMARY|SUMMARY|PROFILE|OVERVIEW)\s*
+\s*([^
+].*?)(?=
+
+|
+[A-Z]|
+\d+\.|
+-|$)/i;
+  const summaryMatch = resumeText.match(summaryPattern);
+  if (summaryMatch) {
+    summary = summaryMatch[2].trim();
+  }
+  
   return {
     name: nameMatch ? nameMatch[1].trim() : "Unknown Candidate",
     email: emailMatch ? emailMatch[0] : "",
     portfolio_link: [],
     skills: skills,
-    experience: [],
+    experience: experience,
     total_experience: totalExperience,
-    summary: "Extracted using fallback method due to AI service unavailability."
+    summary: summary
   };
 }
 
