@@ -51,6 +51,7 @@ import {
   MessageSquare,
   X,
 } from "lucide-react";
+import { useLocation } from "wouter";
 
 interface ExtractedCandidate {
   id: string;
@@ -64,7 +65,7 @@ interface ExtractedCandidate {
     duration: string;
     projects: string[];
   }[];
-  total_experience: string;
+  total_experience: number;
   summary: string;
 }
 
@@ -97,12 +98,15 @@ interface CandidateToAdd {
   status: string;
   reportLink: string | null;
   interviewLink: string | null;
+  strengths: string[];
+  areas_for_improvement: string[];
 }
 
 type UploadStep = "upload" | "extracted" | "matched" | "added";
 
 export default function Upload() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
   const [currentStep, setCurrentStep] = useState<UploadStep>("upload");
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [extractedCandidates, setExtractedCandidates] = useState<ExtractedCandidate[]>([]);
@@ -112,6 +116,7 @@ export default function Upload() {
   const [showInterviewQuestions, setShowInterviewQuestions] = useState<{[key: string]: InterviewQuestions}>({});
   const [isQuestionsDialogOpen, setIsQuestionsDialogOpen] = useState(false);
   const [selectedCandidateForQuestions, setSelectedCandidateForQuestions] = useState<string | null>(null);
+  const [showFullList, setShowFullList] = useState<{type: 'strengths' | 'improvements', candidateId: string} | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -192,7 +197,7 @@ export default function Upload() {
   const extractCandidateData = async (text: string, filename: string): Promise<ExtractedCandidate> => {
     try {
       // Send the text to the backend AI service for processing
-      const response = await apiRequest("/api/ai/extract-resume", {
+      const response = await apiRequest("/api/hr/upload/extract-data", {
         method: "POST",
         body: { 
           resumeText: text,
@@ -212,23 +217,12 @@ export default function Upload() {
         portfolio_link: Array.isArray(response.portfolio_link) ? response.portfolio_link : [],
         skills: Array.isArray(response.skills) ? response.skills : [],
         experience: Array.isArray(response.experience) ? response.experience : [],
-        total_experience: response.total_experience || '',
+        total_experience: response.total_experience || 0,
         summary: response.summary || 'No summary available'
       };
     } catch (error) {
       console.error("Error extracting candidate data:", error);
-      // Check if this is a fallback response
-      if (error instanceof Error && error.message.includes('fallback')) {
-        toast({
-          title: "Notice",
-          description: "AI service unavailable, using fallback extraction method. Results may be limited.",
-          variant: "default",
-        });
-        // Still return the data even if it's from fallback
-        throw error;
-      } else {
-        throw new Error(`Failed to extract candidate data: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
+      throw new Error(`Failed to extract candidate data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -342,7 +336,7 @@ export default function Upload() {
       candidates: ExtractedCandidate[];
       jobId: string;
     }) => {
-      return apiRequest("/api/ai/match-candidates", {
+      return apiRequest("/api/hr/upload/match-candidates", {
         method: "POST",
         body: { candidates, jobId },
       });
@@ -362,19 +356,6 @@ export default function Upload() {
       const matchesWithIds = data.matches.map((match: any) => {
         // Find the corresponding candidate by id
         const candidate = extractedCandidates.find(c => c.id === match.candidateId);
-        
-        // Check if this is a fallback response
-        const isFallback = match.areas_for_improvement.some((area: string) => 
-          area.includes('fallback') || area.includes('AI service unavailability')
-        );
-        
-        if (isFallback) {
-          toast({
-            title: "Notice",
-            description: "AI service unavailable for matching, using fallback method. Results may be limited.",
-            variant: "default",
-          });
-        }
         
         // Ensure we have all required fields
         return {
@@ -431,7 +412,7 @@ export default function Upload() {
         throw new Error("Candidate not found");
       }
 
-      return apiRequest("/api/ai/generate-questions", {
+      return apiRequest("/api/hr/upload/generate-questions", {
         method: "POST",
         body: { candidate, jobId: parseInt(selectedJobId) },
       });
@@ -447,26 +428,11 @@ export default function Upload() {
         return;
       }
       
-      // Check if this is a fallback response by looking at the questions content
-      const questions = data.questions;
-      const isFallback = 
-        (Array.isArray(questions.technical) && questions.technical.some((q: string) => q.includes('fallback'))) ||
-        (Array.isArray(questions.behavioral) && questions.behavioral.some((q: string) => q.includes('fallback'))) ||
-        (Array.isArray(questions.jobSpecific) && questions.jobSpecific.some((q: string) => q.includes('fallback')));
-      
-      if (isFallback) {
-        toast({
-          title: "Notice",
-          description: "AI service unavailable for question generation, using fallback method. Questions may be generic.",
-          variant: "default",
-        });
-      }
-      
       // Ensure all question categories are properly structured
       const validatedQuestions = {
-        technical: Array.isArray(questions.technical) ? questions.technical : [],
-        behavioral: Array.isArray(questions.behavioral) ? questions.behavioral : [],
-        jobSpecific: Array.isArray(questions.jobSpecific) ? questions.jobSpecific : []
+        technical: Array.isArray(data.questions.technical) ? data.questions.technical : [],
+        behavioral: Array.isArray(data.questions.behavioral) ? data.questions.behavioral : [],
+        jobSpecific: Array.isArray(data.questions.jobSpecific) ? data.questions.jobSpecific : []
       };
       
       setShowInterviewQuestions(prev => ({
@@ -532,15 +498,17 @@ export default function Upload() {
           jobTitle: selectedJob?.jobTitle || "",
           jobId: selectedJobId,
           hrHandlingUserId: user?.id || "",
-          status: "resume_reviewed",
-          reportLink: null,
+          status: "Resume Reviewed",
+          reportLink: "#", // Set to a default hyperlink
           interviewLink: null,
+          strengths: match.strengths,
+          areas_for_improvement: match.areas_for_improvement,
         };
       });
 
-      return apiRequest("/api/candidates/add", {
+      return apiRequest("/api/hr/upload/save-candidates", {
         method: "POST",
-        body: { candidates: selectedData, jobId: selectedJobId },
+        body: { candidates: selectedData },
       });
     },
     onSuccess: (data) => {
@@ -693,6 +661,7 @@ export default function Upload() {
     setShowInterviewQuestions({});
     setIsQuestionsDialogOpen(false);
     setSelectedCandidateForQuestions(null);
+    setShowFullList(null);
   };
 
   const handleGenerateQuestions = (candidateId: string) => {
@@ -705,6 +674,14 @@ export default function Upload() {
       return;
     }
     questionsMutation.mutate(candidateId);
+  };
+
+  const handleViewFullList = (type: 'strengths' | 'improvements', candidateId: string) => {
+    setShowFullList({ type, candidateId });
+  };
+
+  const handleRedirectToCandidates = () => {
+    setLocation("/hr/candidates");
   };
 
   // Helper function to format experience for display
@@ -722,25 +699,49 @@ export default function Upload() {
     ));
   };
 
-  // Helper function to format strengths for display
-  const formatStrengths = (strengths: string[]) => {
+  // Helper function to format strengths for display (top 3)
+  const formatStrengths = (strengths: string[], candidateId: string) => {
+    const topThree = strengths.slice(0, 3);
     return (
-      <ul className="list-disc list-inside text-sm">
-        {strengths.slice(0, 5).map((strength, index) => (
-          <li key={index}>{strength}</li>
-        ))}
-      </ul>
+      <div>
+        <ul className="list-disc list-inside text-sm">
+          {topThree.map((strength, index) => (
+            <li key={index}>{strength}</li>
+          ))}
+        </ul>
+        {strengths.length > 3 && (
+          <Button 
+            variant="link" 
+            className="p-0 h-auto text-xs"
+            onClick={() => handleViewFullList('strengths', candidateId)}
+          >
+            View all strengths
+          </Button>
+        )}
+      </div>
     );
   };
 
-  // Helper function to format areas for improvement for display
-  const formatAreasForImprovement = (areas: string[]) => {
+  // Helper function to format areas for improvement for display (top 3)
+  const formatAreasForImprovement = (areas: string[], candidateId: string) => {
+    const topThree = areas.slice(0, 3);
     return (
-      <ul className="list-disc list-inside text-sm">
-        {areas.slice(0, 5).map((area, index) => (
-          <li key={index}>{area}</li>
-        ))}
-      </ul>
+      <div>
+        <ul className="list-disc list-inside text-sm">
+          {topThree.map((area, index) => (
+            <li key={index}>{area}</li>
+          ))}
+        </ul>
+        {areas.length > 3 && (
+          <Button 
+            variant="link" 
+            className="p-0 h-auto text-xs"
+            onClick={() => handleViewFullList('improvements', candidateId)}
+          >
+            View all areas for improvement
+          </Button>
+        )}
+      </div>
     );
   };
 
@@ -807,7 +808,7 @@ export default function Upload() {
                 {uploadMutation.isPending && (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 )}
-                Upload and Extract Data
+                Extract data
               </Button>
             </div>
           </CardContent>
@@ -854,7 +855,7 @@ export default function Upload() {
                     {matchMutation.isPending && (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     )}
-                    Analyze & Match
+                    Analyze and Match
                   </Button>
                 </div>
               </div>
@@ -974,66 +975,22 @@ export default function Upload() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {formatStrengths(match.strengths)}
+                            {formatStrengths(match.strengths, match.candidateId)}
                           </TableCell>
                           <TableCell>
-                            {formatAreasForImprovement(match.areas_for_improvement)}
+                            {formatAreasForImprovement(match.areas_for_improvement, match.candidateId)}
                           </TableCell>
                           <TableCell>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleGenerateQuestions(match.candidateId)}
-                                  disabled={questionsMutation.isPending}
-                                  data-testid={`button-interview-questions-${match.candidateId}`}
-                                >
-                                  <MessageSquare className="w-4 h-4 mr-1" />
-                                  Questions
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-                                <DialogHeader>
-                                  <DialogTitle>Interview Questions for {match.candidate_name}</DialogTitle>
-                                  <DialogDescription>
-                                    Generated based on candidate profile and job requirements
-                                  </DialogDescription>
-                                </DialogHeader>
-                                {showInterviewQuestions[match.candidateId] ? (
-                                  <div className="space-y-6">
-                                    <div>
-                                      <h3 className="text-lg font-semibold mb-2">Technical Questions</h3>
-                                      <ul className="list-decimal list-inside space-y-2">
-                                        {showInterviewQuestions[match.candidateId].technical.map((question, index) => (
-                                          <li key={index}>{question}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                    <div>
-                                      <h3 className="text-lg font-semibold mb-2">Behavioral Questions</h3>
-                                      <ul className="list-decimal list-inside space-y-2">
-                                        {showInterviewQuestions[match.candidateId].behavioral.map((question, index) => (
-                                          <li key={index}>{question}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                    <div>
-                                      <h3 className="text-lg font-semibold mb-2">Job-Specific Questions</h3>
-                                      <ul className="list-decimal list-inside space-y-2">
-                                        {showInterviewQuestions[match.candidateId].jobSpecific.map((question, index) => (
-                                          <li key={index}>{question}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex justify-center items-center h-24">
-                                    <Loader2 className="w-6 h-6 animate-spin" />
-                                  </div>
-                                )}
-                              </DialogContent>
-                            </Dialog>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleGenerateQuestions(match.candidateId)}
+                              disabled={questionsMutation.isPending}
+                              data-testid={`button-interview-questions-${match.candidateId}`}
+                            >
+                              <MessageSquare className="w-4 h-4 mr-1" />
+                              Interview Questions
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -1096,14 +1053,98 @@ export default function Upload() {
                 </AlertDescription>
               </Alert>
               <div className="flex justify-center">
-                <Button onClick={resetFlow} data-testid="button-reset-flow">
-                  Process More Resumes
+                <Button onClick={handleRedirectToCandidates} data-testid="button-reset-flow">
+                  Go to Candidates Page
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Full List Dialog for Strengths/Improvements */}
+      <Dialog open={!!showFullList} onOpenChange={() => setShowFullList(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {showFullList?.type === 'strengths' ? 'All Strengths' : 'All Areas for Improvement'}
+            </DialogTitle>
+            <DialogDescription>
+              Full list of {showFullList?.type === 'strengths' ? 'strengths' : 'areas for improvement'}
+            </DialogDescription>
+          </DialogHeader>
+          {showFullList && (
+            <div className="space-y-4">
+              {showFullList.type === 'strengths' ? (
+                <>
+                  {matchResults
+                    .find(m => m.candidateId === showFullList.candidateId)
+                    ?.strengths.map((strength, index) => (
+                      <div key={index} className="p-2 bg-muted rounded">
+                        {strength}
+                      </div>
+                    ))}
+                </>
+              ) : (
+                <>
+                  {matchResults
+                    .find(m => m.candidateId === showFullList.candidateId)
+                    ?.areas_for_improvement.map((area, index) => (
+                      <div key={index} className="p-2 bg-muted rounded">
+                        {area}
+                      </div>
+                    ))}
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Interview Questions Dialog */}
+      <Dialog open={isQuestionsDialogOpen} onOpenChange={setIsQuestionsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Interview Questions for {selectedCandidateForQuestions ? 
+              matchResults.find(m => m.candidateId === selectedCandidateForQuestions)?.candidate_name : ''}</DialogTitle>
+            <DialogDescription>
+              Generated based on candidate profile and job requirements
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCandidateForQuestions && showInterviewQuestions[selectedCandidateForQuestions] ? (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Technical Questions</h3>
+                <ul className="list-decimal list-inside space-y-2">
+                  {showInterviewQuestions[selectedCandidateForQuestions].technical.map((question, index) => (
+                    <li key={index}>{question}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Behavioral Questions</h3>
+                <ul className="list-decimal list-inside space-y-2">
+                  {showInterviewQuestions[selectedCandidateForQuestions].behavioral.map((question, index) => (
+                    <li key={index}>{question}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Job-Specific Questions</h3>
+                <ul className="list-decimal list-inside space-y-2">
+                  {showInterviewQuestions[selectedCandidateForQuestions].jobSpecific.map((question, index) => (
+                    <li key={index}>{question}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-center items-center h-24">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

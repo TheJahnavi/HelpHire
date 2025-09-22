@@ -620,21 +620,170 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
-    // Handle adding candidates to database
-    else if (url === '/api/candidates/add' && method === 'POST') {
+    // Handle HR Upload endpoints
+    else if (url === '/api/hr/upload/extract-data' && method === 'POST') {
       try {
         if (!user || !user.companyId) {
           return res.status(404).json({ message: "User not found" });
         }
+        
+        const { resumeText } = req.body;
+        
+        if (!resumeText) {
+          return res.status(400).json({ message: "Resume text is required" });
+        }
+
+        // Extract candidate data using AI
+        const extractedData = await extractResumeData(resumeText);
+        
+        // Validate that we got meaningful data
+        if (!extractedData || !extractedData.name) {
+          return res.status(400).json({ message: "Failed to extract valid candidate data from resume" });
+        }
+        
+        // Ensure all required fields are present
+        const validatedExtractedData: ExtractedCandidate = {
+          name: extractedData.name || "Unknown",
+          email: extractedData.email || "",
+          portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
+          skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+          experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+          total_experience: extractedData.total_experience || 0,
+          summary: extractedData.summary || "No summary available"
+        };
+        
+        return res.status(200).json(validatedExtractedData);
+      } catch (error) {
+        console.error("Error in data extraction:", error);
+        return res.status(500).json({ 
+          message: "Failed to extract data",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    } else if (url === '/api/hr/upload/match-candidates' && method === 'POST') {
+      try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        
         const { candidates, jobId } = req.body;
+        
+        if (!candidates || !Array.isArray(candidates)) {
+          return res.status(400).json({ message: "Candidates data is required" });
+        }
+        
+        if (!jobId) {
+          return res.status(400).json({ message: "Job ID is required" });
+        }
+
+        const job = await storage.getJob(parseInt(jobId));
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
+        }
+
+        const matchResults = [];
+        for (const candidate of candidates) {
+          try {
+            const matchResult = await calculateJobMatch(
+              candidate,
+              job.jobTitle,
+              job.skills || [],
+              job.jobDescription || '',
+              job.experience || '',
+              job.note || ''
+            );
+            
+            // Validate that we got a proper match result
+            if (!matchResult || typeof matchResult !== 'object') {
+              const errorMsg = `Failed to get valid match result for candidate ${candidate.name}`;
+              throw new Error(errorMsg);
+            }
+            
+            // Ensure all required fields are present
+            const validatedMatchResult = {
+              candidateId: candidate.id,
+              candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
+              candidate_email: matchResult.candidate_email || candidate.email || "",
+              match_percentage: matchResult.match_percentage || 0,
+              strengths: Array.isArray(matchResult.strengths) ? matchResult.strengths : [],
+              areas_for_improvement: Array.isArray(matchResult.areas_for_improvement) ? matchResult.areas_for_improvement : []
+            };
+            
+            matchResults.push(validatedMatchResult);
+          } catch (matchError) {
+            console.error(`Error matching candidate ${candidate.id}:`, matchError);
+            matchResults.push({
+              candidateId: candidate.id,
+              candidate_name: candidate.name || "Unknown",
+              candidate_email: candidate.email || "",
+              match_percentage: 0,
+              strengths: [],
+              areas_for_improvement: ["Error calculating match: " + (matchError instanceof Error ? matchError.message : 'Unknown error')]
+            });
+          }
+        }
+
+        return res.status(200).json({ matches: matchResults });
+      } catch (error) {
+        console.error("Error in candidate matching:", error);
+        return res.status(500).json({ 
+          message: "Failed to match candidates",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    } else if (url === '/api/hr/upload/generate-questions' && method === 'POST') {
+      try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        
+        const { candidate, jobId } = req.body;
+        
+        if (!candidate) {
+          return res.status(400).json({ message: "Candidate data is required" });
+        }
+        
+        if (!jobId) {
+          return res.status(400).json({ message: "Job ID is required" });
+        }
+
+        const job = await storage.getJob(parseInt(jobId));
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
+        }
+
+        const questions = await generateInterviewQuestions(
+          candidate,
+          job.jobTitle,
+          job.jobDescription || '',
+          job.skills || []
+        );
+        
+        // Validate that we got proper questions
+        if (!questions || typeof questions !== 'object') {
+          const errorMsg = `Failed to generate valid interview questions`;
+          throw new Error(errorMsg);
+        }
+
+        return res.status(200).json({ questions });
+      } catch (error) {
+        console.error("Error in question generation:", error);
+        return res.status(500).json({ 
+          message: "Failed to generate questions",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    } else if (url === '/api/hr/upload/save-candidates' && method === 'POST') {
+      try {
+        if (!user || !user.companyId) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        
+        const { candidates } = req.body;
 
         // Validate input
         if (!candidates || !Array.isArray(candidates)) {
           return res.status(400).json({ message: "Invalid candidates data" });
-        }
-
-        if (!jobId) {
-          return res.status(400).json({ message: "Job ID is required" });
         }
 
         const addedCandidates = [];
@@ -664,7 +813,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const candidateSkills = Array.isArray(candidate.skills) ? candidate.skills : [];
             
             // Validate that jobId is a number
-            const parsedJobId = parseInt(jobId);
+            const parsedJobId = parseInt(candidate.jobId);
             if (isNaN(parsedJobId)) {
               throw new Error("Invalid job ID");
             }
@@ -675,7 +824,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               candidateSkills: candidateSkills,
               candidateExperience: candidateExperience,
               resumeUrl: `resume_${candidate.id}.txt`,
-              status: candidate.status || 'resume_reviewed',
+              status: candidate.status || 'Resume Reviewed',
               jobId: parsedJobId,
               hrHandlingUserId: userId,
               matchPercentage: candidate.matchPercentage || null
@@ -698,9 +847,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Create notification for all company users about new candidates
-        if (addedCandidates.length > 0) {
+        if (addedCandidates.length > 0 && candidates.length > 0) {
           // Get company ID from the job
-          const job = await storage.getJob(parseInt(jobId));
+          const job = await storage.getJob(parseInt(candidates[0].jobId));
           if (job && job.companyId) {
             const candidateNames = addedCandidates.map(c => c.name).join(', ');
             await storage.createNotificationForCompany(

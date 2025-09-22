@@ -29,7 +29,7 @@ export interface ExtractedCandidate {
     duration: string;
     projects: string[];
   }[];
-  total_experience: string;
+  total_experience: number;
   summary: string;
 }
 
@@ -69,12 +69,9 @@ export async function extractResumeData(resumeText: string): Promise<ExtractedCa
     }
 
     const prompt = `
-EXTRACT ONLY THE DATA PRESENT IN THE RESUME. Do not imagine or create any information that is not explicitly stated in the document.
------
-
 ### **Prompt for Agent 1: Resume Data Extraction**
 
-**Objective:** Act as a specialized data extraction agent. Analyze the provided resume content (from \`.pdf\` or \`.docx\` files) and extract key information with high accuracy. The output must be a structured JSON object or a similar data structure that is ready to be displayed in a table.
+**Objective:** Act as a specialized, deterministic data extraction agent. Analyze the provided resume content from \`.pdf\` and \`.docx\` files and extract key information with high accuracy and **consistency**. The output must be a structured JSON object.
 
 **Input:** Raw text content from one or more resumes.
 
@@ -86,88 +83,33 @@ For each resume provided, extract the following data points and format them into
 
 2.  **\`email\`**: The primary email address of the candidate.
 
-3.  **\`portfolio_link\`**: Any URLs found that point to a personal portfolio, GitHub, or professional website. If multiple links are found, list them all as an array.
+3.  **\`portfolio_link\`**: All URLs found that point to a personal portfolio, GitHub, or professional website. List them all as an array of strings.
 
-4.  **\`skills\`**: A comprehensive list of all technical and soft skills mentioned in the resume. Format this as a clean, simple array of strings.
+4.  **\`skills\`**: A comprehensive list of all technical and soft skills mentioned in the resume. Format this as a clean, simple array of strings. Maintain the original capitalization and spelling of the skills as they appear in the resume.
 
-5.  **\`experience\`**: A detailed, structured breakdown of the candidate's work history. For each job listed, extract the following sub-fields:
+5.  **\`experience\`**: A detailed, structured breakdown of the candidate's work history. This must be an array of objects. For each job listed, extract the following sub-fields:
 
-      * \`job_title\`: The title of the position (e.g., "Lead Automation QA").
+    * \`job_title\`: The exact title of the position.
 
-      * \`company\`: The name of the company.
+    * \`company\`: The name of the company.
 
-      * \`duration\`: The duration of the role (e.g., "3 yr", "2021 - 2024").
+    * \`duration\`: The duration of the role (e.g., "3 yr", "2021 - 2024").
 
-      * \`projects\`: A list of projects and key responsibilities or achievements associated with the role.
+    * \`projects\`: A list of projects and key responsibilities or achievements associated with the role.
 
-6.  **\`total_experience\`**: The total number of years of professional experience, calculated from all listed jobs.
+6.  **\`total_experience\`**: The total number of years of professional experience, calculated from all listed jobs. Present this as a numerical value in years (e.g., \`5\`). If a specific duration isn't found, estimate based on start and end years.
 
-7.  **\`summary\`**: A concise, professional summary of the resume, no more than **five** lines long. It should be a short, to-the-point paragraph highlighting the candidate's key qualifications and career goals.
+7.  **\`summary\`**: A concise, professional summary, no more than **five** lines long, highlighting the candidate's key qualifications and career goals.
 
 **Instructions & Constraints:**
 
-  * Be meticulous in parsing structured data from free-form text.
+* **Determinism**: Your output must be identical for the same input. Do not introduce any randomness or creative language. If you receive the same resume text twice, you must produce the same JSON object both times.
 
-  * The output format must be consistent for every resume.
+* **Accuracy**: Be meticulous in parsing data. **EXTRACT ONLY THE DATA PRESENT IN THE RESUME.** Do not imagine or create any information that is not explicitly stated.
 
-  * If a specific data point (e.g., portfolio link) is not found, the value should be \`null\` or an empty string, not an error.
+* **Consistency**: The output format must be consistent for every resume. If a data point is not found, the value should be \`null\` or an empty array/string.
 
-  * Do not include any conversational text in the final output. The output should be the raw, structured data only.
-
-  * The \`experience\` structure must be an array of objects, with each object representing a single job.
-
-**Example of Desired Output Format:**
-
-\`\`\`json
-{
-  "name": "Jane Doe",
-  "email": "jane.doe@example.com",
-  "portfolio_link": [
-    "https://github.com/janedoe",
-    "https://www.janedoe.me"
-  ],
-  "skills": [
-    "JavaScript",
-    "Python",
-    "React",
-    "Node.js",
-    "Agile Methodology",
-    "Leadership"
-  ],
-  "experience": [
-    {
-      "job_title": "Lead Automation QA",
-      "company": "Tech Corp",
-      "duration": "3 yr",
-      "projects": [
-        "Led a team of 5 in developing automated testing frameworks.",
-        "Reduced bug count by 25% through improved test coverage."
-      ]
-    },
-    {
-      "job_title": "Automation Tester",
-      "company": "Innovate Ltd.",
-      "duration": "2 yr",
-      "projects": [
-        "Developed and maintained regression test suites.",
-        "Integrated testing into CI/CD pipeline."
-      ]
-    }
-  ],
-  "total_experience": "5 years",
-  "summary": "Highly skilled Automation QA professional with 5 years of experience in leading and building QA teams. Proficient in a range of testing methodologies and tools, with a proven track record of enhancing software quality. Seeking to leverage expertise in a challenging new role."
-}
-\`\`\`
-
-Instructions & Constraints:
-
-Adhere strictly to the required JSON structure.
-
-The experience field must be an array of objects, with each object representing a single job.
-
-If a specific data point (e.g., portfolio_link or summary) is not found, the value must be null or an empty array/string. Do not generate placeholder data.
-
-The final output must be a valid JSON object containing only the extracted data. Do not include any additional conversational text or explanations.
+* **No Conversation**: The output should be the raw, structured JSON data only, without any conversational text or explanation.
 
 
 RESUME CONTENT:
@@ -200,7 +142,7 @@ Return only valid JSON, no additional text.
       portfolio_link: Array.isArray(parsedData.portfolio_link) ? parsedData.portfolio_link : [],
       skills: Array.isArray(parsedData.skills) ? parsedData.skills : [],
       experience: Array.isArray(parsedData.experience) ? parsedData.experience : [],
-      total_experience: parsedData.total_experience || "",
+      total_experience: parsedData.total_experience || 0,
       summary: parsedData.summary || "No summary available"
     };
   } catch (error: any) {
@@ -242,12 +184,12 @@ function fallbackExtractResumeData(resumeText: string): ExtractedCandidate {
   
   // Extract experience years (simple pattern matching)
   const experienceMatches = resumeText.match(/(\d+)\s*(?:year|yr)s?/gi);
-  let totalExperience = "";
+  let totalExperience = 0;
   if (experienceMatches && experienceMatches.length > 0) {
     // Find the highest number as total experience
     const years = experienceMatches.map(match => parseInt(match)).filter(num => !isNaN(num));
     if (years.length > 0) {
-      totalExperience = `${Math.max(...years)} years`;
+      totalExperience = Math.max(...years);
     }
   }
   
@@ -274,51 +216,47 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
     const prompt = `
 ### **Prompt for Agent 2: Resume-to-Job Match Analysis**
 
-**Objective:** Act as a specialized AI agent to analyze a candidate's qualifications against a specific job role. Compare the extracted resume data with a provided job description and generate a detailed match analysis. The output must be a structured JSON object.
+**Objective:** Act as a precise, consistent, and deterministic AI agent to analyze a candidate's qualifications against a specific job role. Generate a comprehensive match analysis where the numerical scores are mathematically linked.
 
 **Input:**
 
-1.  **Candidate Data:** A JSON object containing the candidate's extracted information (name, email, skills, experience, etc.) from Agent 1.
+1.  **Candidate Data:** A JSON object from Agent 1.
 
-2.  **Job Data:** A JSON object containing the job's title, description, and required qualifications from the \`jobs\` database table.
+2.  **Job Data:** A JSON object containing the job's title, description, and required qualifications.
 
 **Instructions & Constraints:**
 
-The analysis must be based **only** on the provided \`Candidate Data\` and \`Job Data\`. Do not use external knowledge or invent information.
+* **Consistency**: The final output must be identical for the same input data. The scores and analyses must be calculated consistently every time.
 
----
+* **Objectivity**: Base your analysis **only** on the provided \`Candidate Data\` and \`Job Data\`. Do not use external knowledge or invent information.
 
-### **Analysis and Output Generation**
+* **No Conversation**: The output must be the raw, structured JSON object only.
 
-Your primary task is to act as a comparative engine, generating a comprehensive match analysis. The final output must be a single JSON object.
+**Analysis and Output Generation:**
 
-1.  **\`match_percentage\`**: Generate a single numerical score (0-100) that represents the overall match.
+Your primary task is to perform a detailed comparison and generate a single JSON object with the following fields and precise scoring logic:
 
-    * **Analysis Method**: To calculate this score, perform a semantic and quantitative analysis.
+1.  **\`match_percentage\`**: A single numerical score (0-100) representing the overall alignment of the candidate's profile with the job's requirements.
 
-        * **Skills Matching**: Compare the candidate's \`skills\` array and skills mentioned within their \`experience\` section to the job's \`required_skills\`.
+    * **Calculation Method**: Perform a semantic and quantitative analysis.
 
-        * **Experience Alignment**: Analyze the candidate's \`job_title\`, \`company\`, and \`projects\` against the job's \`description\` to determine how well their background aligns with the role's responsibilities.
+        * **Skills Alignment**: Compare the candidate's skills and experience against the job's required and preferred skills.
 
-        * **Holistic Score**: The final score should be a well-reasoned metric reflecting the combined strength of the skills and experience match.
+        * **Experience Alignment**: Analyze the candidate's job titles, companies, and project descriptions to determine how well their professional background matches the role's responsibilities.
 
-2.  **\`strengths\`**: Create a list of at least **five** specific points that directly justify the \`match_percentage\` score. These points should highlight the candidate's relevant skills, experience, and achievements that align with the job description.
+        * **Holistic Score**: The final score is a combined, well-reasoned metric reflecting the overall strength of the match.
 
-    * **Source**: Extract these points directly from the candidate's resume data. For instance, if the job requires "project management experience," a strength might be "Led a team of five on a project from conception to launch."
+2.  **\`strengths\`**: An object containing a numerical score and a list of detailed points.
 
-3.  **\`areas_for_improvement\`**: Create a list of specific reasons or missing qualifications that contribute to the difference from a 100% match.
+    * **Score**: The \`strengths.score\` **must be exactly equal** to the \`match_percentage\` value.
 
-    * **Source**: Identify requirements in the job description that are not mentioned in the candidate's resume. For example, if the job requires "CI/CD pipeline expertise" but the resume doesn't mention it, that would be listed here.
+    * **Description**: A list of at least five specific, justifiable points. These points should highlight the candidate's qualifications that directly contributed to the \`match_percentage\` score. The first three points should be the most impactful and relevant to be displayed as a summary.
 
----
+3.  **\`areas_for_improvement\`**: An object containing a numerical score and a list of detailed points.
 
-### **Final Output Structure**
+    * **Score**: The \`areas_for_improvement.score\` **must be exactly equal** to \`100 - match_percentage\`.
 
-* **\`candidate_name\`**: The full name of the candidate.
-* **\`candidate_email\`**: The email address of the candidate.
-* **\`match_percentage\`**: A single numerical value between 0 and 100.
-* **\`strengths\`**: An array of strings, with each string representing a specific point.
-* **\`areas_for_improvement\`**: An array of strings, with each string representing a specific point.
+    * **Description**: A list of specific reasons or missing qualifications that explain why the candidate's score is less than 100. These points should be based on job requirements not found in the candidate's resume. The first three points should be the most critical for the role.
 
 
 Candidate Data:
@@ -333,7 +271,7 @@ Candidate Data:
     "duration": "${job.duration}",
     "projects": [${(job.projects || []).map(p => `"${p}"`).join(', ')}]
   }`).join(',')}],
-  "total_experience": "${candidate.total_experience}",
+  "total_experience": ${candidate.total_experience},
   "summary": "${candidate.summary}"
 }
 
@@ -416,7 +354,7 @@ function fallbackCalculateJobMatch(
     : 0;
   
   // Calculate experience match (simple comparison)
-  const candidateExperienceYears = parseInt(candidate.total_experience) || 0;
+  const candidateExperienceYears = candidate.total_experience || 0;
   const jobExperienceMatch = jobDescription.toLowerCase().includes('experience') ? 70 : 50;
   
   // Combined match percentage
@@ -428,13 +366,17 @@ function fallbackCalculateJobMatch(
     match_percentage: matchPercentage,
     strengths: [
       `Skills match: ${matchingSkills.length} out of ${requiredSkills.length} required skills`,
-      `Total experience: ${candidate.total_experience || 'Not specified'}`,
-      `Relevant portfolio links: ${candidate.portfolio_link.length > 0 ? 'Yes' : 'No'}`
+      `Total experience: ${candidate.total_experience || 'Not specified'} years`,
+      `Relevant portfolio links: ${candidate.portfolio_link.length > 0 ? 'Yes' : 'No'}`,
+      "Fallback analysis due to AI service unavailability",
+      "Detailed matching requires AI processing"
     ],
     areas_for_improvement: [
       "Detailed analysis requires AI processing",
       "Experience level assessment limited without AI",
-      "Specific skill gap analysis not available in fallback mode"
+      "Specific skill gap analysis not available in fallback mode",
+      "Fallback method used due to AI service unavailability",
+      "Full analysis requires proper AI configuration"
     ]
   };
 }
@@ -456,55 +398,29 @@ export async function generateInterviewQuestions(
     const prompt = `
 ### **Prompt for Agent 3: Interview Question Generation**
 
-**Objective:** Act as an expert interview question generator. Create a curated list of questions based on a candidate's profile and a specific job role's requirements. The questions must be categorized for different interview stages. The output must be a structured JSON object.
+**Objective:** Act as an expert interview question generator, creating a curated, **consistent** list of questions.
 
 **Input:**
 
-1.  **Candidate Data:** The JSON object containing the candidate's extracted information (skills, experience, projects, etc.) from Agent 1.
+1.  **Candidate Data:** The JSON object from Agent 1.
 
-2.  **Job Data:** The JSON object containing the job's title, description, and required_skills from the jobs database table.
+2.  **Job Data:** The JSON object containing the job's title, description, and required skills.
 
 **Instructions & Constraints:**
 
-* The questions must be tailored to the specific **skills and experience mentioned in the candidate's resume** and the **requirements outlined in the job description**. Do not generate generic questions.
+* **Consistency**: For the same input data, you must generate the exact same set of questions every time.
 
-* Generate a minimum of **five** questions for each category.
+* **Specificity**: Questions must be tailored to the specific skills and experience in the candidate's resume and the job description.
 
-* Do not generate questions that can be answered with a simple "yes" or "no."
+* **No Vague Questions**: Do not generate questions that can be answered with a simple "yes" or "no."
 
----
+**Question Categories and Content:**
 
-### **Question Categories and Content**
+* **Technical Questions**: Focus on the candidate's stated technical skills and their experience with specific technologies or tools.
 
-1.  **Technical Questions**:
+* **Behavioral Questions**: Explore the candidate's past work behavior and soft skills, tied to scenarios from their resume.
 
-    * **Focus**: These questions should test the candidate's stated technical skills and their experience with specific technologies or tools mentioned in their resume or the job description.
-
-    * **Examples**: If the resume lists "Python," ask a question about Python best practices or common libraries. If a project description mentions "database optimization," ask a question about their approach to performance tuning.
-
-2.  **Behavioral Questions**:
-
-    * **Focus**: These questions should explore the candidate's past work behavior and soft skills. They should be tied to real-world scenarios from the candidate's experience section.
-
-    * **Examples**: "Tell me about a time you had to resolve a conflict within a team, as a 'Lead Automation QA'?" or "Describe a difficult project you faced, and how your 'leadership' skills helped you navigate it."
-
-3.  **Job-Specific Questions**:
-
-    * **Focus**: These questions should directly relate to the specific responsibilities and challenges of the job role being filled. Use details from the job_description to formulate these.
-
-    * **Examples**: "Based on our job description, what do you think would be your biggest challenge in the first 90 days?" or "How would you apply your experience with 'CI/CD pipelines' to improve our current deployment process?"
-
----
-
-### **Final Output Structure**
-
-The output must be a single JSON object with the following three keys, each containing an array of strings (the questions).
-
-* \`technical_questions\`: [ "Question 1", "Question 2", ... ]
-
-* \`behavioral_questions\`: [ "Question 1", "Question 2", ... ]
-
-* \`job_specific_questions\`: [ "Question 1", "Question 2", ... ]
+* **Job-Specific Questions**: Directly relate to the specific responsibilities and challenges of the job role being filled.
 
 
 Candidate Data:
@@ -519,7 +435,7 @@ Candidate Data:
     "duration": "${job.duration}",
     "projects": [${(job.projects || []).map(p => `"${p}"`).join(', ')}]
   }`).join(',')}],
-  "total_experience": "${candidate.total_experience}",
+  "total_experience": ${candidate.total_experience},
   "summary": "${candidate.summary}"
 }
 
@@ -530,7 +446,14 @@ Job Data:
   "description": "${jobDescription}"
 }
 
-Return only valid JSON, no additional text.
+Return only valid JSON with the following structure:
+{
+  "technical": ["Question 1", "Question 2", ...],
+  "behavioral": ["Question 1", "Question 2", ...],
+  "jobSpecific": ["Question 1", "Question 2", ...]
+}
+
+Generate a minimum of 5 questions for each category.
     `;
 
     const response = await openai.chat.completions.create({
@@ -553,9 +476,9 @@ Return only valid JSON, no additional text.
     
     // Transform the response to match our InterviewQuestions interface
     return {
-      technical: Array.isArray(parsedData.technical_questions) ? parsedData.technical_questions : [],
-      behavioral: Array.isArray(parsedData.behavioral_questions) ? parsedData.behavioral_questions : [],
-      jobSpecific: Array.isArray(parsedData.job_specific_questions) ? parsedData.job_specific_questions : []
+      technical: Array.isArray(parsedData.technical) ? parsedData.technical : [],
+      behavioral: Array.isArray(parsedData.behavioral) ? parsedData.behavioral : [],
+      jobSpecific: Array.isArray(parsedData.jobSpecific) ? parsedData.jobSpecific : []
     };
   } catch (error: any) {
     console.error("Error generating interview questions:", error);
