@@ -705,8 +705,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
               candidate_email: matchResult.candidate_email || candidate.email || "",
               match_percentage: matchResult.match_percentage || 0,
-              strengths: Array.isArray(matchResult.strengths) ? matchResult.strengths : [],
-              areas_for_improvement: Array.isArray(matchResult.areas_for_improvement) ? matchResult.areas_for_improvement : []
+              strengths: matchResult.strengths?.description || [],
+              areas_for_improvement: matchResult.areas_for_improvement?.description || []
             };
             
             matchResults.push(validatedMatchResult);

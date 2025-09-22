@@ -49,14 +49,20 @@ export interface JobMatchResult {
   candidate_name: string;
   candidate_email: string;
   match_percentage: number;
-  strengths: string[];
-  areas_for_improvement: string[];
+  strengths: {
+    score: number;
+    description: string[];
+  };
+  areas_for_improvement: {
+    score: number;
+    description: string[];
+  };
 }
 
 export interface InterviewQuestions {
-  technical: string[];
-  behavioral: string[];
-  jobSpecific: string[];
+  technical_questions: string[];
+  behavioral_questions: string[];
+  job_specific_questions: string[];
 }
 
 export async function extractResumeData(resumeText: string): Promise<ExtractedCandidate> {
@@ -216,47 +222,59 @@ export async function calculateJobMatch(candidate: ExtractedCandidate, jobTitle:
     const prompt = `
 ### **Prompt for Agent 2: Resume-to-Job Match Analysis**
 
-**Objective:** Act as a precise, consistent, and deterministic AI agent to analyze a candidate's qualifications against a specific job role. Generate a comprehensive match analysis where the numerical scores are mathematically linked.
+**Objective:** Act as a precise, consistent, and deterministic AI agent to analyze a candidate's qualifications against a specific job role. Generate a comprehensive match analysis with mathematically linked scores.
 
 **Input:**
 
-1.  **Candidate Data:** A JSON object from Agent 1.
+1.  **Candidate Data:** The JSON object from Agent 1.
 
-2.  **Job Data:** A JSON object containing the job's title, description, and required qualifications.
+2.  **Job Data:** The JSON object containing the job's title, description, and required qualifications.
 
-**Instructions & Constraints:**
+**Output Structure:**
 
-* **Consistency**: The final output must be identical for the same input data. The scores and analyses must be calculated consistently every time.
+The output must be a single JSON object with the following fields and precise scoring logic:
 
-* **Objectivity**: Base your analysis **only** on the provided \`Candidate Data\` and \`Job Data\`. Do not use external knowledge or invent information.
+\`\`\`json
+{
+  "candidate_name": "Jane Smith",
+  "candidate_email": "jane.smith@email.com",
+  "match_percentage": 75,
+  "strengths": {
+    "score": 75,
+    "description": [
+      "5 years of experience in automation testing, matching the job's requirement.",
+      "Proven experience leading a QA team, a key leadership requirement for this role.",
+      "Strong skills in JavaScript and Python are directly relevant to the tech stack."
+    ]
+  },
+  "areas_for_improvement": {
+    "score": 25,
+    "description": [
+      "Lacks specific experience with the Jenkins CI tool.",
+      "Resume does not mention experience with performance testing.",
+      "Projects listed do not directly align with the company's industry."
+    ]
+  }
+}
+\`\`\`
 
-* **No Conversation**: The output must be the raw, structured JSON object only.
+**Logic and Verification:**
 
-**Analysis and Output Generation:**
+  * **Process in Steps:**
 
-Your primary task is to perform a detailed comparison and generate a single JSON object with the following fields and precise scoring logic:
+    1.  **First, calculate \`match_percentage\`**: Analyze the candidate's extracted \`skills\`, \`experience\` (including project descriptions), and \`summary\`. Compare these directly against the job's \`required_skills\` and \`description\`. Assign a final numerical score from 0 to 100 based on this holistic comparison.
 
-1.  **\`match_percentage\`**: A single numerical score (0-100) representing the overall alignment of the candidate's profile with the job's requirements.
+    2.  **Second, calculate \`strengths\`**: Based **on the exact same criteria used for the \`match_percentage\`**, generate a list of at least five specific points that justify the score. The \`strengths.score\` **must be exactly equal** to the \`match_percentage\` value.
 
-    * **Calculation Method**: Perform a semantic and quantitative analysis.
+    3.  **Third, calculate \`areas_for_improvement\`**: Identify every skill, responsibility, or qualification in the job description that is **not present** in the candidate's profile. The \`areas_for_improvement.score\` **must be exactly equal** to \`100 - match_percentage\`.
 
-        * **Skills Alignment**: Compare the candidate's skills and experience against the job's required and preferred skills.
+  * **Conditions/Checks:**
 
-        * **Experience Alignment**: Analyze the candidate's job titles, companies, and project descriptions to determine how well their professional background matches the role's responsibilities.
+      * **Consistency is Non-Negotiable**: For the same input data, the output JSON object, including all scores and lists, **must be identical every time**.
 
-        * **Holistic Score**: The final score is a combined, well-reasoned metric reflecting the overall strength of the match.
+      * **Mathematical Verification**: The condition \`match_percentage === strengths.score\` must always be true. The condition \`areas_for_improvement.score === 100 - match_percentage\` must always be true.
 
-2.  **\`strengths\`**: An object containing a numerical score and a list of detailed points.
-
-    * **Score**: The \`strengths.score\` **must be exactly equal** to the \`match_percentage\` value.
-
-    * **Description**: A list of at least five specific, justifiable points. These points should highlight the candidate's qualifications that directly contributed to the \`match_percentage\` score. The first three points should be the most impactful and relevant to be displayed as a summary.
-
-3.  **\`areas_for_improvement\`**: An object containing a numerical score and a list of detailed points.
-
-    * **Score**: The \`areas_for_improvement.score\` **must be exactly equal** to \`100 - match_percentage\`.
-
-    * **Description**: A list of specific reasons or missing qualifications that explain why the candidate's score is less than 100. These points should be based on job requirements not found in the candidate's resume. The first three points should be the most critical for the role.
+      * **Source Data**: Your analysis must be based **only** on the provided \`Candidate Data\` and \`Job Data\`.
 
 
 Candidate Data:
@@ -309,8 +327,14 @@ Return only valid JSON, no additional text.
       candidate_name: parsedData.candidate_name || candidate.name,
       candidate_email: parsedData.candidate_email || candidate.email,
       match_percentage: parsedData.match_percentage || 0,
-      strengths: Array.isArray(parsedData.strengths) ? parsedData.strengths : [],
-      areas_for_improvement: Array.isArray(parsedData.areas_for_improvement) ? parsedData.areas_for_improvement : []
+      strengths: {
+        score: parsedData.strengths?.score || 0,
+        description: Array.isArray(parsedData.strengths?.description) ? parsedData.strengths.description : []
+      },
+      areas_for_improvement: {
+        score: parsedData.areas_for_improvement?.score || 0,
+        description: Array.isArray(parsedData.areas_for_improvement?.description) ? parsedData.areas_for_improvement.description : []
+      }
     };
   } catch (error: any) {
     console.error("Error calculating job match:", error);
@@ -364,20 +388,26 @@ function fallbackCalculateJobMatch(
     candidate_name: candidate.name,
     candidate_email: candidate.email,
     match_percentage: matchPercentage,
-    strengths: [
-      `Skills match: ${matchingSkills.length} out of ${requiredSkills.length} required skills`,
-      `Total experience: ${candidate.total_experience || 'Not specified'} years`,
-      `Relevant portfolio links: ${candidate.portfolio_link.length > 0 ? 'Yes' : 'No'}`,
-      "Fallback analysis due to AI service unavailability",
-      "Detailed matching requires AI processing"
-    ],
-    areas_for_improvement: [
-      "Detailed analysis requires AI processing",
-      "Experience level assessment limited without AI",
-      "Specific skill gap analysis not available in fallback mode",
-      "Fallback method used due to AI service unavailability",
-      "Full analysis requires proper AI configuration"
-    ]
+    strengths: {
+      score: matchPercentage,
+      description: [
+        `Skills match: ${matchingSkills.length} out of ${requiredSkills.length} required skills`,
+        `Total experience: ${candidate.total_experience || 'Not specified'} years`,
+        `Relevant portfolio links: ${candidate.portfolio_link.length > 0 ? 'Yes' : 'No'}`,
+        "Fallback analysis due to AI service unavailability",
+        "Detailed matching requires AI processing"
+      ]
+    },
+    areas_for_improvement: {
+      score: 100 - matchPercentage,
+      description: [
+        "Detailed analysis requires AI processing",
+        "Experience level assessment limited without AI",
+        "Specific skill gap analysis not available in fallback mode",
+        "Fallback method used due to AI service unavailability",
+        "Full analysis requires proper AI configuration"
+      ]
+    }
   };
 }
 
@@ -398,7 +428,7 @@ export async function generateInterviewQuestions(
     const prompt = `
 ### **Prompt for Agent 3: Interview Question Generation**
 
-**Objective:** Act as an expert interview question generator, creating a curated, **consistent** list of questions.
+**Objective:** Act as an expert interview question generator, creating a curated, **consistent**, and relevant list of questions.
 
 **Input:**
 
@@ -406,21 +436,44 @@ export async function generateInterviewQuestions(
 
 2.  **Job Data:** The JSON object containing the job's title, description, and required skills.
 
-**Instructions & Constraints:**
+**Output Structure:**
 
-* **Consistency**: For the same input data, you must generate the exact same set of questions every time.
+The output must be a single JSON object with the following three keys, each containing an array of strings (the questions).
 
-* **Specificity**: Questions must be tailored to the specific skills and experience in the candidate's resume and the job description.
+\`\`\`json
+{
+  "technical_questions": [
+    "Question 1",
+    "Question 2"
+  ],
+  "behavioral_questions": [
+    "Question 1",
+    "Question 2"
+  ],
+  "job_specific_questions": [
+    "Question 1",
+    "Question 2"
+  ]
+}
+\`\`\`
 
-* **No Vague Questions**: Do not generate questions that can be answered with a simple "yes" or "no."
+**Logic and Verification:**
 
-**Question Categories and Content:**
+  * **Process in Steps:**
 
-* **Technical Questions**: Focus on the candidate's stated technical skills and their experience with specific technologies or tools.
+    1.  **First, generate Technical Questions**: Read the candidate's \`skills\` list and \`experience\` descriptions. Formulate 5 questions that test their practical application of these skills, specifically in the context of their listed projects or responsibilities.
 
-* **Behavioral Questions**: Explore the candidate's past work behavior and soft skills, tied to scenarios from their resume.
+    2.  **Second, generate Behavioral Questions**: Use the candidate's \`experience\` and \`summary\` to craft 5 questions about their past behavior. Focus on scenarios related to their listed \`job_title\`s or key achievements.
 
-* **Job-Specific Questions**: Directly relate to the specific responsibilities and challenges of the job role being filled.
+    3.  **Third, generate Job-Specific Questions**: Read the \`job_description\` from the job data. Formulate 5 questions that directly address the specific responsibilities, challenges, or unique aspects of this particular role.
+
+  * **Conditions/Checks:**
+
+      * **Consistency is Non-Negotiable**: The set of questions generated **must be identical** for the same input data every time.
+
+      * **Relevance**: Questions must be **directly tailored**. Do not generate generic questions.
+
+      * **Content Check**: Ensure all questions are open-ended and not answerable with a simple "yes" or "no."
 
 
 Candidate Data:
@@ -448,9 +501,9 @@ Job Data:
 
 Return only valid JSON with the following structure:
 {
-  "technical": ["Question 1", "Question 2", ...],
-  "behavioral": ["Question 1", "Question 2", ...],
-  "jobSpecific": ["Question 1", "Question 2", ...]
+  "technical_questions": ["Question 1", "Question 2", ...],
+  "behavioral_questions": ["Question 1", "Question 2", ...],
+  "job_specific_questions": ["Question 1", "Question 2", ...]
 }
 
 Generate a minimum of 5 questions for each category.
@@ -476,9 +529,9 @@ Generate a minimum of 5 questions for each category.
     
     // Transform the response to match our InterviewQuestions interface
     return {
-      technical: Array.isArray(parsedData.technical) ? parsedData.technical : [],
-      behavioral: Array.isArray(parsedData.behavioral) ? parsedData.behavioral : [],
-      jobSpecific: Array.isArray(parsedData.jobSpecific) ? parsedData.jobSpecific : []
+      technical_questions: Array.isArray(parsedData.technical_questions) ? parsedData.technical_questions : [],
+      behavioral_questions: Array.isArray(parsedData.behavioral_questions) ? parsedData.behavioral_questions : [],
+      job_specific_questions: Array.isArray(parsedData.job_specific_questions) ? parsedData.job_specific_questions : []
     };
   } catch (error: any) {
     console.error("Error generating interview questions:", error);
@@ -532,8 +585,8 @@ function fallbackGenerateInterviewQuestions(
   ];
 
   return {
-    technical: technicalQuestions,
-    behavioral: behavioralQuestions,
-    jobSpecific: jobSpecificQuestions
+    technical_questions: technicalQuestions,
+    behavioral_questions: behavioralQuestions,
+    job_specific_questions: jobSpecificQuestions
   };
 }

@@ -79,9 +79,9 @@ interface JobMatch {
 }
 
 interface InterviewQuestions {
-  technical: string[];
-  behavioral: string[];
-  jobSpecific: string[];
+  technical_questions: string[];
+  behavioral_questions: string[];
+  job_specific_questions: string[];
 }
 
 // Add new interface for the candidate data to be added to database
@@ -430,9 +430,9 @@ export default function Upload() {
       
       // Ensure all question categories are properly structured
       const validatedQuestions = {
-        technical: Array.isArray(data.questions.technical) ? data.questions.technical : [],
-        behavioral: Array.isArray(data.questions.behavioral) ? data.questions.behavioral : [],
-        jobSpecific: Array.isArray(data.questions.jobSpecific) ? data.questions.jobSpecific : []
+        technical_questions: Array.isArray(data.questions.technical_questions) ? data.questions.technical_questions : [],
+        behavioral_questions: Array.isArray(data.questions.behavioral_questions) ? data.questions.behavioral_questions : [],
+        job_specific_questions: Array.isArray(data.questions.job_specific_questions) ? data.questions.job_specific_questions : []
       };
       
       setShowInterviewQuestions(prev => ({
@@ -704,15 +704,13 @@ export default function Upload() {
     const topThree = strengths.slice(0, 3);
     return (
       <div>
-        <ul className="list-disc list-inside text-sm">
-          {topThree.map((strength, index) => (
-            <li key={index}>{strength}</li>
-          ))}
-        </ul>
+        <div className="font-medium">{strengths.length > 0 ? strengths[0] : ''}</div>
+        {strengths.length > 1 && <div>{strengths[1]}</div>}
+        {strengths.length > 2 && <div>{strengths[2]}</div>}
         {strengths.length > 3 && (
           <Button 
             variant="link" 
-            className="p-0 h-auto text-xs"
+            className="p-0 h-auto text-xs mt-1"
             onClick={() => handleViewFullList('strengths', candidateId)}
           >
             View all strengths
@@ -727,15 +725,13 @@ export default function Upload() {
     const topThree = areas.slice(0, 3);
     return (
       <div>
-        <ul className="list-disc list-inside text-sm">
-          {topThree.map((area, index) => (
-            <li key={index}>{area}</li>
-          ))}
-        </ul>
+        <div className="font-medium">{areas.length > 0 ? areas[0] : ''}</div>
+        {areas.length > 1 && <div>{areas[1]}</div>}
+        {areas.length > 2 && <div>{areas[2]}</div>}
         {areas.length > 3 && (
           <Button 
             variant="link" 
-            className="p-0 h-auto text-xs"
+            className="p-0 h-auto text-xs mt-1"
             onClick={() => handleViewFullList('improvements', candidateId)}
           >
             View all areas for improvement
@@ -1116,7 +1112,7 @@ export default function Upload() {
               <div>
                 <h3 className="text-lg font-semibold mb-2">Technical Questions</h3>
                 <ul className="list-decimal list-inside space-y-2">
-                  {showInterviewQuestions[selectedCandidateForQuestions].technical.map((question, index) => (
+                  {showInterviewQuestions[selectedCandidateForQuestions].technical_questions.map((question, index) => (
                     <li key={index}>{question}</li>
                   ))}
                 </ul>
@@ -1124,7 +1120,7 @@ export default function Upload() {
               <div>
                 <h3 className="text-lg font-semibold mb-2">Behavioral Questions</h3>
                 <ul className="list-decimal list-inside space-y-2">
-                  {showInterviewQuestions[selectedCandidateForQuestions].behavioral.map((question, index) => (
+                  {showInterviewQuestions[selectedCandidateForQuestions].behavioral_questions.map((question, index) => (
                     <li key={index}>{question}</li>
                   ))}
                 </ul>
@@ -1132,7 +1128,7 @@ export default function Upload() {
               <div>
                 <h3 className="text-lg font-semibold mb-2">Job-Specific Questions</h3>
                 <ul className="list-decimal list-inside space-y-2">
-                  {showInterviewQuestions[selectedCandidateForQuestions].jobSpecific.map((question, index) => (
+                  {showInterviewQuestions[selectedCandidateForQuestions].job_specific_questions.map((question, index) => (
                     <li key={index}>{question}</li>
                   ))}
                 </ul>
