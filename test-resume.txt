@@ -1,23 +1,23 @@
 John Doe
-john.doe@example.com
-github.com/johndoe
+john.doe@email.com
 
-Skills:
-JavaScript, React, Node.js, Python, SQL, HTML, CSS
+SUMMARY
+Experienced Software Engineer with 5 years of experience in web development and automation testing. Skilled in JavaScript, Python, and various testing frameworks.
 
-Experience:
-Senior Software Engineer at Tech Corp (2020 - 2024)
-- Led development of web applications using React and Node.js
-- Implemented RESTful APIs for mobile applications
+SKILLS
+JavaScript, Python, React, Node.js, Express, MongoDB, PostgreSQL, Docker, Kubernetes, AWS, Git, HTML, CSS, Selenium, Playwright, Jest, Mocha, Chai, Pytest, Jenkins, GitLab CI, GitHub Actions, CircleCI, Travis CI, Agile, Scrum, Kanban, Waterfall, BDD, TDD, CI/CD
+
+EXPERIENCE
+Senior Software Engineer
+Tech Corp
+2021 - 2024 (3 years)
+- Led a team of 5 developers in building a web application using React and Node.js
+- Implemented automated testing using Playwright and Jest
 - Reduced bug count by 25% through improved test coverage
 
-Software Developer at Innovate Ltd. (2018 - 2020)
-- Developed and maintained regression test suites
-- Integrated testing into CI/CD pipeline
+Software Engineer
+Innovate Ltd.
+2019 - 2021 (2 years)
+- Developed and maintained RESTful APIs using Express and MongoDB
+- Integrated testing into CI/CD pipeline using Jenkins
 - Collaborated with cross-functional teams to deliver high-quality software
-
-Education:
-B.S. in Computer Science, University of Technology (2014 - 2018)
-
-Summary:
-Experienced software engineer with 6 years of experience in web development. Proficient in JavaScript, React, and Node.js. Seeking to leverage expertise in a challenging new role.

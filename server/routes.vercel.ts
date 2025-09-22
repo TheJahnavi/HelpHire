@@ -10,6 +10,9 @@ import * as fs from "fs";
 import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini.js";
 import * as mammoth from "mammoth";
 
+
+
+
 // Setup multer for file uploads
 const upload = multer({
   dest: '/tmp/uploads/',
@@ -1542,13 +1545,18 @@ export function registerRoutes(app: Application) {
       });
     } catch (error) {
       console.error("Error adding candidates:", error);
-      res.status(500).json({ message: "Failed to add candidates" });
+      res.status(500).json({ 
+        message: "Failed to add candidates",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
   // HR Upload endpoints
   app.post('/api/hr/upload/extract-data', isAuthenticated, async (req: any, res) => {
     try {
+      const sessionUser = req.session.user;
+      
       const { resumeText } = req.body;
       
       if (!resumeText) {
@@ -1574,7 +1582,7 @@ export function registerRoutes(app: Application) {
         summary: extractedData.summary || "No summary available"
       };
       
-      res.json(validatedExtractedData);
+      res.status(200).json(validatedExtractedData);
     } catch (error) {
       console.error("Error in data extraction:", error);
       res.status(500).json({ 
@@ -1586,6 +1594,8 @@ export function registerRoutes(app: Application) {
 
   app.post('/api/hr/upload/match-candidates', isAuthenticated, async (req: any, res) => {
     try {
+      const sessionUser = req.session.user;
+      
       const { candidates, jobId } = req.body;
       
       if (!candidates || !Array.isArray(candidates)) {
@@ -1643,7 +1653,7 @@ export function registerRoutes(app: Application) {
         }
       }
 
-      res.json({ matches: matchResults });
+      res.status(200).json({ matches: matchResults });
     } catch (error) {
       console.error("Error in candidate matching:", error);
       res.status(500).json({ 
@@ -1655,6 +1665,8 @@ export function registerRoutes(app: Application) {
 
   app.post('/api/hr/upload/generate-questions', isAuthenticated, async (req: any, res) => {
     try {
+      const sessionUser = req.session.user;
+      
       const { candidate, jobId } = req.body;
       
       if (!candidate) {
@@ -1683,7 +1695,7 @@ export function registerRoutes(app: Application) {
         throw new Error(errorMsg);
       }
 
-      res.json({ questions });
+      res.status(200).json({ questions });
     } catch (error) {
       console.error("Error in question generation:", error);
       res.status(500).json({ 
@@ -1696,40 +1708,6 @@ export function registerRoutes(app: Application) {
   app.post('/api/hr/upload/save-candidates', isAuthenticated, async (req: any, res) => {
     try {
       const sessionUser = req.session.user;
-      let actualUserId = sessionUser.id;
-      
-      // In development, ensure we have a proper user in the database
-      if (process.env.NODE_ENV === 'development' && sessionUser.id === 'test-user-id') {
-        try {
-          // Check if the test user exists in the database
-          const existingUser = await storage.getUser('test-user-id');
-          if (!existingUser) {
-            // Create mock company if needed
-            let companyId: number;
-            const mockCompany = await storage.getCompanyByName("Test Company");
-            if (mockCompany) {
-              companyId = mockCompany.id;
-            } else {
-              const newCompany = await storage.createCompany({ companyName: "Test Company" });
-              companyId = newCompany.id;
-            }
-            
-            // Create the test user in the database
-            await storage.createUser({
-              id: 'test-user-id',
-              email: "test@example.com",
-              name: "Test User",
-              role: "HR",
-              companyId: companyId,
-              accountStatus: 'active',
-            });
-          }
-          actualUserId = 'test-user-id';
-        } catch (userError) {
-          // If user already exists, continue with existing user
-          console.log("User already exists, continuing with existing user");
-        }
-      }
       
       const { candidates } = req.body;
 
@@ -1782,7 +1760,7 @@ export function registerRoutes(app: Application) {
             resumeUrl: `resume_${candidate.id}.txt`,
             status: candidate.status || 'Resume Reviewed',
             jobId: parsedJobId,
-            hrHandlingUserId: actualUserId,
+            hrHandlingUserId: sessionUser.id,
             matchPercentage: candidate.matchPercentage || null
           });
 
