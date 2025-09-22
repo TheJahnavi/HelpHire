@@ -277,7 +277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
             skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
             experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
-            total_experience: extractedData.total_experience || "",
+            total_experience: extractedData.total_experience || "0 years total",
             summary: extractedData.summary || "No summary available"
           };
           
@@ -648,7 +648,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
           skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
           experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
-          total_experience: extractedData.total_experience || 0,
+          total_experience: extractedData.total_experience || "0 years total",
           summary: extractedData.summary || "No summary available"
         };
         
@@ -705,8 +705,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
               candidate_email: matchResult.candidate_email || candidate.email || "",
               match_percentage: matchResult.match_percentage || 0,
-              strengths: matchResult.strengths?.description || [],
-              areas_for_improvement: matchResult.areas_for_improvement?.description || []
+              strengths: Array.isArray(matchResult.strengths?.description) ? matchResult.strengths.description : [],
+              areas_for_improvement: Array.isArray(matchResult.areas_for_improvement?.description) ? matchResult.areas_for_improvement.description : []
             };
             
             matchResults.push(validatedMatchResult);
@@ -807,6 +807,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const durationMatch = job.duration?.match(/(\d+)/);
                 return total + (durationMatch ? parseInt(durationMatch[1]) : 0);
               }, 0);
+            } else if (typeof candidate.experience === 'string') {
+              // String representation like "4 years total" - extract the number
+              const experienceMatch = candidate.experience.match(/(\d+)/);
+              candidateExperience = experienceMatch ? parseInt(experienceMatch[1]) : 0;
             }
 
             // Ensure skills is an array

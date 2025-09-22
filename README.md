@@ -96,8 +96,8 @@ Simple PostgreSQL database with a $5/month credit for free accounts.
    Update the following variables in `.env`:
    - `DATABASE_URL`: Your PostgreSQL database connection string
    - `SESSION_SECRET`: A random secret string for session encryption
-   - `GEMINI_API_KEY`: Your Google Gemini API key
-   - `PORT`: Server port (default: 5000)
+   - `OPENAI_API_KEY`: Your OpenRouter API key (get from https://openrouter.ai/keys)
+   - `PORT`: Server port (default: 5002)
 
 4. **Set up the database**
    ```bash

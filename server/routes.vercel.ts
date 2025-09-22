@@ -1545,4 +1545,291 @@ export function registerRoutes(app: Application) {
       res.status(500).json({ message: "Failed to add candidates" });
     }
   });
+
+  // HR Upload endpoints
+  app.post('/api/hr/upload/extract-data', isAuthenticated, async (req: any, res) => {
+    try {
+      const { resumeText } = req.body;
+      
+      if (!resumeText) {
+        return res.status(400).json({ message: "Resume text is required" });
+      }
+
+      // Extract candidate data using AI
+      const extractedData = await extractResumeData(resumeText);
+      
+      // Validate that we got meaningful data
+      if (!extractedData || !extractedData.name) {
+        return res.status(400).json({ message: "Failed to extract valid candidate data from resume" });
+      }
+      
+      // Ensure all required fields are present
+      const validatedExtractedData: ExtractedCandidate = {
+        name: extractedData.name || "Unknown",
+        email: extractedData.email || "",
+        portfolio_link: Array.isArray(extractedData.portfolio_link) ? extractedData.portfolio_link : [],
+        skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
+        experience: Array.isArray(extractedData.experience) ? extractedData.experience : [],
+        total_experience: extractedData.total_experience || "0 years total",
+        summary: extractedData.summary || "No summary available"
+      };
+      
+      res.json(validatedExtractedData);
+    } catch (error) {
+      console.error("Error in data extraction:", error);
+      res.status(500).json({ 
+        message: "Failed to extract data",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.post('/api/hr/upload/match-candidates', isAuthenticated, async (req: any, res) => {
+    try {
+      const { candidates, jobId } = req.body;
+      
+      if (!candidates || !Array.isArray(candidates)) {
+        return res.status(400).json({ message: "Candidates data is required" });
+      }
+      
+      if (!jobId) {
+        return res.status(400).json({ message: "Job ID is required" });
+      }
+
+      const job = await storage.getJob(parseInt(jobId));
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      const matchResults = [];
+      for (const candidate of candidates) {
+        try {
+          const matchResult = await calculateJobMatch(
+            candidate,
+            job.jobTitle,
+            job.skills || [],
+            job.jobDescription || '',
+            job.experience || '',
+            job.note || ''
+          );
+          
+          // Validate that we got a proper match result
+          if (!matchResult || typeof matchResult !== 'object') {
+            const errorMsg = `Failed to get valid match result for candidate ${candidate.name}`;
+            throw new Error(errorMsg);
+          }
+          
+          // Ensure all required fields are present
+          const validatedMatchResult = {
+            candidateId: candidate.id,
+            candidate_name: matchResult.candidate_name || candidate.name || "Unknown",
+            candidate_email: matchResult.candidate_email || candidate.email || "",
+            match_percentage: matchResult.match_percentage || 0,
+            strengths: Array.isArray(matchResult.strengths?.description) ? matchResult.strengths.description : [],
+            areas_for_improvement: Array.isArray(matchResult.areas_for_improvement?.description) ? matchResult.areas_for_improvement.description : []
+          };
+          
+          matchResults.push(validatedMatchResult);
+        } catch (matchError) {
+          console.error(`Error matching candidate ${candidate.id}:`, matchError);
+          matchResults.push({
+            candidateId: candidate.id,
+            candidate_name: candidate.name || "Unknown",
+            candidate_email: candidate.email || "",
+            match_percentage: 0,
+            strengths: [],
+            areas_for_improvement: ["Error calculating match: " + (matchError instanceof Error ? matchError.message : 'Unknown error')]
+          });
+        }
+      }
+
+      res.json({ matches: matchResults });
+    } catch (error) {
+      console.error("Error in candidate matching:", error);
+      res.status(500).json({ 
+        message: "Failed to match candidates",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.post('/api/hr/upload/generate-questions', isAuthenticated, async (req: any, res) => {
+    try {
+      const { candidate, jobId } = req.body;
+      
+      if (!candidate) {
+        return res.status(400).json({ message: "Candidate data is required" });
+      }
+      
+      if (!jobId) {
+        return res.status(400).json({ message: "Job ID is required" });
+      }
+
+      const job = await storage.getJob(parseInt(jobId));
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      const questions = await generateInterviewQuestions(
+        candidate,
+        job.jobTitle,
+        job.jobDescription || '',
+        job.skills || []
+      );
+      
+      // Validate that we got proper questions
+      if (!questions || typeof questions !== 'object') {
+        const errorMsg = `Failed to generate valid interview questions`;
+        throw new Error(errorMsg);
+      }
+
+      res.json({ questions });
+    } catch (error) {
+      console.error("Error in question generation:", error);
+      res.status(500).json({ 
+        message: "Failed to generate questions",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  app.post('/api/hr/upload/save-candidates', isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionUser = req.session.user;
+      let actualUserId = sessionUser.id;
+      
+      // In development, ensure we have a proper user in the database
+      if (process.env.NODE_ENV === 'development' && sessionUser.id === 'test-user-id') {
+        try {
+          // Check if the test user exists in the database
+          const existingUser = await storage.getUser('test-user-id');
+          if (!existingUser) {
+            // Create mock company if needed
+            let companyId: number;
+            const mockCompany = await storage.getCompanyByName("Test Company");
+            if (mockCompany) {
+              companyId = mockCompany.id;
+            } else {
+              const newCompany = await storage.createCompany({ companyName: "Test Company" });
+              companyId = newCompany.id;
+            }
+            
+            // Create the test user in the database
+            await storage.createUser({
+              id: 'test-user-id',
+              email: "test@example.com",
+              name: "Test User",
+              role: "HR",
+              companyId: companyId,
+              accountStatus: 'active',
+            });
+          }
+          actualUserId = 'test-user-id';
+        } catch (userError) {
+          // If user already exists, continue with existing user
+          console.log("User already exists, continuing with existing user");
+        }
+      }
+      
+      const { candidates } = req.body;
+
+      // Validate input
+      if (!candidates || !Array.isArray(candidates)) {
+        return res.status(400).json({ message: "Invalid candidates data" });
+      }
+
+      const addedCandidates = [];
+      const failedCandidates = [];
+      
+      for (const candidate of candidates) {
+        try {
+          // Validate required fields
+          if (!candidate.name || !candidate.email) {
+            throw new Error("Candidate name and email are required");
+          }
+
+          // Process candidate experience - it could be a number (from client) or an array (from server processing)
+          let candidateExperience = 0;
+          if (typeof candidate.experience === 'number') {
+            // Direct number from client
+            candidateExperience = candidate.experience;
+          } else if (Array.isArray(candidate.experience)) {
+            // Array of job experiences from server-side processing
+            candidateExperience = candidate.experience.reduce((total: number, job: { duration: string }) => {
+              const durationMatch = job.duration?.match(/(\d+)/);
+              return total + (durationMatch ? parseInt(durationMatch[1]) : 0);
+            }, 0);
+          } else if (typeof candidate.experience === 'string') {
+            // String representation like "4 years total" - extract the number
+            const experienceMatch = candidate.experience.match(/(\d+)/);
+            candidateExperience = experienceMatch ? parseInt(experienceMatch[1]) : 0;
+          }
+
+          // Ensure skills is an array
+          const candidateSkills = Array.isArray(candidate.skills) ? candidate.skills : [];
+          
+          // Validate that jobId is a number
+          const parsedJobId = parseInt(candidate.jobId);
+          if (isNaN(parsedJobId)) {
+            throw new Error("Invalid job ID");
+          }
+
+          const candidateData = insertCandidateSchema.parse({
+            candidateName: candidate.name.trim(),
+            email: candidate.email.trim(),
+            candidateSkills: candidateSkills,
+            candidateExperience: candidateExperience,
+            resumeUrl: `resume_${candidate.id}.txt`,
+            status: candidate.status || 'Resume Reviewed',
+            jobId: parsedJobId,
+            hrHandlingUserId: actualUserId,
+            matchPercentage: candidate.matchPercentage || null
+          });
+
+          const addedCandidate = await storage.createCandidate(candidateData);
+          addedCandidates.push({
+            id: addedCandidate.id,
+            name: addedCandidate.candidateName,
+            email: addedCandidate.email
+          });
+          
+        } catch (candidateError) {
+          console.error(`Error adding candidate ${candidate.name || 'Unknown'}:`, candidateError);
+          failedCandidates.push({
+            name: candidate.name || 'Unknown',
+            error: candidateError instanceof Error ? candidateError.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Create notification for all company users about new candidates
+      if (addedCandidates.length > 0 && candidates.length > 0) {
+        try {
+          // Get company ID from the job
+          const job = await storage.getJob(parseInt(candidates[0].jobId));
+          if (job && job.companyId) {
+            const candidateNames = addedCandidates.map(c => c.name).join(', ');
+            await storage.createNotificationForCompany(
+              job.companyId,
+              `${addedCandidates.length} new candidate${addedCandidates.length > 1 ? 's' : ''} added: ${candidateNames}`
+            );
+          }
+        } catch (notificationError) {
+          console.error("Error creating notification:", notificationError);
+        }
+      }
+
+      res.status(200).json({ 
+        message: `Successfully added ${addedCandidates.length} candidates to database${failedCandidates.length > 0 ? ` (${failedCandidates.length} failed)` : ''}`,
+        candidates: addedCandidates,
+        failed: failedCandidates
+      });
+    } catch (error) {
+      console.error("Error adding candidates:", error);
+      res.status(500).json({ 
+        message: "Failed to add candidates",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
 }
