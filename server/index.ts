@@ -63,7 +63,7 @@ if (process.env.NODE_ENV === "development") {
     // Other ports are firewalled. Default to 5001 if not specified.
     // this serves both the API and the client.
     // It is the only port that is not firewalled.
-    const port = parseInt(process.env.PORT || '5002', 10);
+    const port = parseInt(process.env.PORT || '5003', 10);
     server.listen(port, () => {
       log(`serving on port ${port}`);
     });
