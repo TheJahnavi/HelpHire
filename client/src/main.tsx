@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // Simple test to see if the React app is being rendered
 console.log("React app is starting...");
@@ -18,4 +19,9 @@ testElement.style.color = "white";
 testElement.style.padding = "10px";
 document.body.appendChild(testElement);
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <>
+    <App />
+    <SpeedInsights />
+  </>
+);
