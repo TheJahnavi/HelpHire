@@ -10,7 +10,7 @@
       }
     },
     {
-      "src": "server/vercel-entry.ts",
+      "src": "dist/vercel-entry.js",
       "use": "@vercel/node",
       "config": {
         "includeFiles": "dist/**"
@@ -35,7 +35,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/server/vercel-entry.ts"
+      "dest": "/dist/vercel-entry.js"
     }
   ]
 }

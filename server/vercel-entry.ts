@@ -29,8 +29,8 @@ export default function handler(req: any, res: any) {
   
   // Serve index.html for all non-API routes (for client-side routing)
   // Serve the index.html file
-  // When compiled, this file will be in dist/, so we need to go up one directory to find dist/public
-  const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
+  // When compiled, this file will be in dist/, so we need to look in dist/public
+  const indexPath = path.join(__dirname, 'public', 'index.html');
   
   // Check if file exists
   if (!fs.existsSync(indexPath)) {
