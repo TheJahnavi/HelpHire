@@ -3,6 +3,8 @@ import express, { type Express } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+// Import the route registration function
+import { registerRoutes } from "./routes.vercel.js";
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +18,9 @@ console.log('dist path:', path.join(__dirname, '..', 'dist', 'public'));
 const app: Express = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Register all API routes
+registerRoutes(app);
 
 // Serve static files from the dist/public directory
 const staticPath = path.join(__dirname, '..', 'dist', 'public');
