@@ -10,3 +10,5 @@ simple-server.js
 test-api.cjs
 test-import.js
 test-server.js
+# Generated JavaScript files from TypeScript
+server/*.js
