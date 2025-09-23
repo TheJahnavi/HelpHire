@@ -17,7 +17,7 @@ function handler(req, res) {
     res.status(404).json({ message: "API route not found" });
     return;
   }
-  const indexPath = path.join(__dirname, "public", "index.html");
+  const indexPath = path.join(__dirname, "..", "dist", "public", "index.html");
   if (!fs.existsSync(indexPath)) {
     console.error("index.html not found at:", indexPath);
     res.status(500).json({
