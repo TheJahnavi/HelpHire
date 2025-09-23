@@ -1,5 +1,13 @@
 # SmartHire - AI-Powered Hiring Platform
 
+This is an AI-powered hiring platform designed to streamline recruitment workflows for HR professionals and hiring managers. It leverages modern web technologies and AI to automate resume parsing, candidate-job matching, and interview preparation.
+
+## Recent Updates
+
+- Fixed Vercel routing configuration to resolve 404 errors on login page
+- Removed WebSocket dependency to fix serverless function initialization errors
+- Updated database connection configuration for better compatibility with Vercel deployment
+
 ## Overview
 
 SmartHire is a professional multi-role login smart hiring web application designed to streamline the recruitment process for HR professionals and hiring managers. It enables efficient candidate data extraction via AI, job management, and user-friendly dashboards.
