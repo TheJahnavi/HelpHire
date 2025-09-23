@@ -3872,7 +3872,7 @@ var init_wrapper = __esm({
   }
 });
 
-// shared/schema.ts
+// shared/schema.js
 var schema_exports = {};
 __export(schema_exports, {
   candidates: () => candidates,

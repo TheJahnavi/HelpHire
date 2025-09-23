@@ -25,4 +25,9 @@ console.log('Compiling schema.ts...');
 execSync('npx esbuild shared/schema.ts --platform=node --bundle --format=esm --outfile=shared/schema.js --external:zod --external:drizzle-orm --external:drizzle-zod', { stdio: 'inherit' });
 console.log('✅ Compiled schema.ts');
 
+// Compile vercel-handler.ts to vercel-handler.js
+console.log('Compiling vercel-handler.ts...');
+execSync('npx esbuild server/vercel-handler.ts --platform=node --bundle --format=esm --outfile=server/vercel-handler.js --external:@vercel/node --external:bcryptjs --external:zod --external:@neondatabase/serverless --external:drizzle-orm --external:drizzle-zod --external:mammoth --external:fs --external:path', { stdio: 'inherit' });
+console.log('✅ Compiled vercel-handler.ts');
+
 console.log('✅ Build completed successfully');
