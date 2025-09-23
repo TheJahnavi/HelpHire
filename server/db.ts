@@ -1,20 +1,6 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
+import { Pool } from '@neondatabase/serverless';
 import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import * as schema from "../shared/schema.js";
-
-// Set WebSocket constructor dynamically if in a Node.js environment
-if (typeof window === 'undefined') {
-  try {
-    // Dynamically import ws only if needed
-    import('ws').then((wsModule) => {
-      neonConfig.webSocketConstructor = wsModule.default || wsModule;
-    }).catch((error) => {
-      console.warn('Could not import ws module:', error);
-    });
-  } catch (error) {
-    console.warn('WebSocket module setup failed:', error);
-  }
-}
 
 // Function to sanitize DATABASE_URL
 function sanitizeDatabaseUrl(url: string): string {

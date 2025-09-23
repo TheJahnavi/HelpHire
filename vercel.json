@@ -53,5 +53,15 @@
       "src": "/(.*)",
       "dest": "/dist/vercel-entry.js"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
