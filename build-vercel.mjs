@@ -1,6 +1,6 @@
 // Build script for Vercel deployment
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, copyFileSync } from 'fs';
 
 console.log('Building for Vercel deployment...');
 
@@ -34,5 +34,10 @@ console.log('✅ Compiled vercel-handler.ts');
 console.log('Compiling vercel-entry.ts...');
 execSync('npx esbuild server/vercel-entry.ts --platform=node --bundle --format=esm --outfile=server/vercel-entry.js --external:express --external:path --external:fs --external:url --external:dotenv', { stdio: 'inherit' });
 console.log('✅ Compiled vercel-entry.ts');
+
+// Copy vercel-entry.js to dist directory
+console.log('Copying vercel-entry.js to dist directory...');
+copyFileSync('server/vercel-entry.js', 'dist/vercel-entry.js');
+console.log('✅ Copied vercel-entry.js to dist directory');
 
 console.log('✅ Build completed successfully');

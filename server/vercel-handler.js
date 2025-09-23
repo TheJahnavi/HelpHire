@@ -17737,7 +17737,7 @@ var openai_default = OpenAI;
 
 // server/gemini.js
 var openai = new openai_default({
-  apiKey: process.env.OPENROUTER_API_KEY || "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",
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || "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",
   baseURL: "https://openrouter.ai/api/v1"
 });
 async function extractResumeData(resumeText) {
@@ -18129,6 +18129,7 @@ async function handler(req, res) {
           return res.status(500).json({ message: "Failed to create user" });
         }
       }
+      return;
     }
     if ((url === "/api/ai/match-candidates" || url === "/api/ai/generate-questions" || url === "/api/ai/extract-resume") && method === "POST") {
       if (url === "/api/ai/match-candidates") {
@@ -18235,12 +18236,13 @@ async function handler(req, res) {
           });
         }
       }
+      return;
     }
-    if (!userId && !((url === "/api/ai/match-candidates" || url === "/api/ai/generate-questions" || url === "/api/ai/extract-resume") && method === "POST")) {
+    if (!userId && !url.startsWith("/api/auth/") && !((url === "/api/ai/match-candidates" || url === "/api/ai/generate-questions" || url === "/api/ai/extract-resume") && method === "POST")) {
       return res.status(400).json({ message: "User ID is required" });
     }
     let user = null;
-    if (userId && !((url === "/api/ai/match-candidates" || url === "/api/ai/generate-questions" || url === "/api/ai/extract-resume") && method === "POST")) {
+    if (userId && !url.startsWith("/api/auth/") && !((url === "/api/ai/match-candidates" || url === "/api/ai/generate-questions" || url === "/api/ai/extract-resume") && method === "POST")) {
       user = await storage.getUser(userId);
       if (!user || !user.companyId) {
         return res.status(404).json({ message: "User or company not found" });

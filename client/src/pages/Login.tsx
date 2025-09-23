@@ -16,7 +16,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Brain } from "lucide-react";
 import { Link } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -67,10 +66,21 @@ export default function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const response = await apiRequest("/api/auth/login", {
+      // Make login request without x-user-id header since we don't have a user yet
+      const response = await fetch("/api/auth/login", {
         method: "POST",
-        body: data,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Login failed");
+      }
+      
+      const result = await response.json();
       
       toast({
         title: "Login successful",
@@ -78,7 +88,7 @@ export default function Login() {
       });
 
       // Store user data in localStorage
-      localStorage.setItem("user", JSON.stringify(response.user));
+      localStorage.setItem("user", JSON.stringify(result.user));
       
       // Redirect based on role after a short delay to ensure state is updated
       setTimeout(() => {

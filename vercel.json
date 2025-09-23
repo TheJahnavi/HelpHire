@@ -10,7 +10,14 @@
       }
     },
     {
-      "src": "server/vercel-entry.ts",
+      "src": "server/vercel-handler.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "dist/**"
+      }
+    },
+    {
+      "src": "server/vercel-entry.js",
       "use": "@vercel/node",
       "config": {
         "includeFiles": "dist/**"
@@ -24,7 +31,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/server/vercel-entry.ts"
+      "dest": "/server/vercel-entry.js"
     }
   ]
 }

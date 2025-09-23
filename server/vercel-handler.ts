@@ -79,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Handle auth routes
+    // Handle auth routes - these don't require user authentication
     if (url.startsWith('/api/auth/') && method === 'POST') {
       if (url === '/api/auth/login') {
         // Handle login
@@ -168,6 +168,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(500).json({ message: "Failed to create user" });
         }
       }
+      
+      // If we've handled an auth route, return early
+      return;
     }
     
     // Handle AI endpoints that don't require authentication
@@ -298,17 +301,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
       }
+      
+      // If we've handled an AI route, return early
+      return;
     }
     
-    // Require user ID for all other endpoints EXCEPT AI endpoints
+    // Require user ID for all other endpoints EXCEPT auth endpoints and AI endpoints
+    // Auth endpoints are already handled above
     // AI endpoints are already handled above
-    if (!userId && !((url === '/api/ai/match-candidates' || url === '/api/ai/generate-questions' || url === '/api/ai/extract-resume') && method === 'POST')) {
+    if (!userId && !url.startsWith('/api/auth/') && !((url === '/api/ai/match-candidates' || url === '/api/ai/generate-questions' || url === '/api/ai/extract-resume') && method === 'POST')) {
       return res.status(400).json({ message: "User ID is required" });
     }
     
     // Get user details (only if user ID is required for this endpoint)
     let user = null;
-    if (userId && !((url === '/api/ai/match-candidates' || url === '/api/ai/generate-questions' || url === '/api/ai/extract-resume') && method === 'POST')) {
+    if (userId && !url.startsWith('/api/auth/') && !((url === '/api/ai/match-candidates' || url === '/api/ai/generate-questions' || url === '/api/ai/extract-resume') && method === 'POST')) {
       user = await storage.getUser(userId);
       if (!user || !user.companyId) {
         return res.status(404).json({ message: "User or company not found" });

@@ -39,7 +39,7 @@ export interface InterviewQuestions {
 }
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY || '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',
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
   baseURL: 'https://openrouter.ai/api/v1',
 });
 
