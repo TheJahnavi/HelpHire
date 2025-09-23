@@ -50,7 +50,18 @@ app.get("*", (req, res) => {
   }
 
   console.log('Serving index.html from:', indexPath);
-  res.sendFile(indexPath);
+  // Read the file and send it as response
+  fs.readFile(indexPath, 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading index.html:', err);
+      return res.status(500).json({ 
+        message: 'Error reading index.html',
+        error: err.message
+      });
+    }
+    res.setHeader('Content-Type', 'text/html');
+    res.status(200).send(data);
+  });
 });
 
 console.log("Vercel server initialized");
