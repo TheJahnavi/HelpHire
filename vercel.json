@@ -26,6 +26,22 @@
   ],
   "routes": [
     {
+      "src": "/api/health",
+      "dest": "/server/vercel-handler.ts"
+    },
+    {
+      "src": "/api/auth/login",
+      "dest": "/server/vercel-handler.ts"
+    },
+    {
+      "src": "/api/auth/signup",
+      "dest": "/server/vercel-handler.ts"
+    },
+    {
+      "src": "/api/auth/user",
+      "dest": "/server/vercel-handler.ts"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/server/vercel-handler.ts"
     },
