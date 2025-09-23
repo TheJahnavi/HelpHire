@@ -15,12 +15,19 @@
       "config": {
         "includeFiles": "dist/**"
       }
+    },
+    {
+      "src": "server/vercel-handler.ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "dist/**"
+      }
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/vercel-entry.ts"
+      "dest": "/server/vercel-handler.ts"
     },
     {
       "src": "/assets/(.*)",
