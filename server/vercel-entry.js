@@ -20,27 +20,9 @@ function handler(req, res) {
   const indexPath = path.join(__dirname, "public", "index.html");
   if (!fs.existsSync(indexPath)) {
     console.error("index.html not found at:", indexPath);
-    const altPath = path.join(__dirname, "..", "dist", "public", "index.html");
-    if (fs.existsSync(altPath)) {
-      console.log("Using alternative path:", altPath);
-      fs.readFile(altPath, "utf8", (err, data) => {
-        if (err) {
-          console.error("Error reading index.html:", err);
-          res.status(500).json({
-            message: "Error reading index.html",
-            error: err.message
-          });
-          return;
-        }
-        res.setHeader("Content-Type", "text/html");
-        res.status(200).send(data);
-      });
-      return;
-    }
     res.status(500).json({
       message: "index.html not found",
-      path: indexPath,
-      altPath
+      path: indexPath
     });
     return;
   }

@@ -10,14 +10,7 @@
       }
     },
     {
-      "src": "server/vercel-handler.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": "dist/**"
-      }
-    },
-    {
-      "src": "server/vercel-entry.js",
+      "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
         "includeFiles": "dist/**"
@@ -27,11 +20,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/vercel-handler.js"
+      "dest": "/server/vercel-entry.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/server/vercel-entry.js"
+      "dest": "/server/vercel-entry.ts"
     }
   ]
 }
