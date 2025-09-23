@@ -7,6 +7,8 @@ This is an AI-powered hiring platform designed to streamline recruitment workflo
 - Fixed Vercel routing configuration to resolve 404 errors on login page
 - Removed WebSocket dependency to fix serverless function initialization errors
 - Updated database connection configuration for better compatibility with Vercel deployment
+- Optimized vercel.json configuration for cleaner builds
+- Ensured complete API surface coverage for all frontend functionality
 
 ## Overview
 
