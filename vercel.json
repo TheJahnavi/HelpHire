@@ -50,21 +50,12 @@
       "dest": "/assets/$1"
     },
     {
+      "src": "/_vercel/speed-insights/(.*)",
+      "dest": "/_vercel/speed-insights/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/dist/vercel-entry.js"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "speedInsights": {
-    "enabled": true
-  }
+  ]
 }
