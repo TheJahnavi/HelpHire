@@ -63,14 +63,22 @@ if (process.env.NODE_ENV === "development") {
     // Other ports are firewalled. Default to 5001 if not specified.
     // this serves both the API and the client.
     // It is the only port that is not firewalled.
-    const port = parseInt(process.env.PORT || '5003', 10);
+    const port = parseInt(process.env.PORT || '5004', 10);
     server.listen(port, () => {
       log(`serving on port ${port}`);
     });
   })();
 } else {
-  // For production/Vercel, serve static files
+  // For production/Vercel, serve static files and start server
   serveStatic(app);
+  
+  // Create and start the server
+  const server = createServer(app);
+  const port = parseInt(process.env.PORT || '5004', 10);
+  server.listen(port, () => {
+    log(`Server listening on port ${port}`);
+    console.log(`Server listening on port ${port}`);
+  });
 }
 
 // Export the app for Vercel
