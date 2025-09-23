@@ -35,17 +35,18 @@ function Router() {
       {/* Test route */}
       <Route path="/test" component={TestPage} />
       
-      {/* Public routes */}
+      {/* Public routes - always accessible */}
       <Route path="/login" component={Login} />
       <Route path="/signin" component={Login} />
       <Route path="/signup" component={Signup} />
       
-      {isLoading || !isAuthenticated ? (
-        <>
-          <Route path="/" component={Landing} />
-          <Route component={NotFound} />
-        </>
-      ) : (
+      {/* For unauthenticated users, show landing page for root path */}
+      {!isAuthenticated && !isLoading && (
+        <Route path="/" component={Landing} />
+      )}
+      
+      {/* For authenticated users, show dashboard routes */}
+      {isAuthenticated && !isLoading && (
         <>
           {/* Role-based dashboard routing */}
           {user?.role === "Super Admin" && (
@@ -63,11 +64,14 @@ function Router() {
           <Route path="/hr/upload" component={Upload} />
           <Route path="/hr/profile" component={Profile} />
           <Route path="/hr/notifications" component={NotificationsPage} />
-          
-          {/* This should be the last route to catch all unmatched paths */}
-          <Route component={NotFound} />
         </>
       )}
+      
+      {/* Fallback routes */}
+      {!isAuthenticated && !isLoading && (
+        <Route component={Landing} />
+      )}
+      <Route component={NotFound} />
     </Switch>
   );
 }
