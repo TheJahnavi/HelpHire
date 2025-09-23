@@ -56,9 +56,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const url = req.url || '/';
+    // Extract URL without query parameters for routing
+    const fullUrl = req.url || '/';
+    const url = fullUrl.split('?')[0];  // Remove query parameters if any
     const method = req.method || 'GET';
     const userId = req.headers['x-user-id'] as string;
+
+    // Debug logging
+    console.log('Vercel Handler - URL:', fullUrl);
+    console.log('Vercel Handler - Clean URL:', url);
+    console.log('Vercel Handler - Method:', method);
+    console.log('Vercel Handler - Body:', req.body);
 
     // Handle health check
     if (url === '/api/health' && method === 'GET') {

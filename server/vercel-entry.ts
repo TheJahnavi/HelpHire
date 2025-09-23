@@ -22,18 +22,6 @@ const staticPath = path.join(__dirname, '..', 'dist', 'public');
 console.log('Static path:', staticPath);
 app.use(express.static(staticPath));
 
-// Add a simple test endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-    DATABASE_URL_SET: !!process.env.DATABASE_URL,
-    VERCEL_ENV: process.env.VERCEL,
-    staticPath
-  });
-});
-
 // Serve index.html for all non-API routes (for client-side routing)
 app.get("*", (req, res) => {
   // Serve the index.html file

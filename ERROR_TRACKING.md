@@ -1,28 +1,19 @@
 # Error Tracking and Solutions
 
-This document tracks repeated errors encountered in the SmartHire project and their solutions.
+This document tracks repeated errors encountered in the SmartHire project and their solutions to prevent future occurrences.
 
-## 1. FUNCTION_INVOCATION_FAILED with 500 Status
+## 1. FUNCTION_INVOCATION_FAILED
 
 ### Error:
-```
-SyntaxError: The requested module './gemini.js' does not provide an export named 'calculateJobMatch'
-    at ModuleJob._instantiate (node:internal/modules/esm/module_job:182:21)
-```
+Vercel deployment fails with `FUNCTION_INVOCATION_FAILED` error.
 
 ### Cause:
-The `gemini.js` file didn't have proper exports for the AI agent functions because the TypeScript file wasn't compiled correctly.
+TypeScript files were not being properly compiled for Vercel serverless functions.
 
 ### Solution:
-1. Recompiled `gemini.ts` using esbuild with correct settings:
-   ```bash
-   npx esbuild server/gemini.ts --platform=node --bundle --format=esm --outfile=server/gemini.js --external:openai
-   ```
-2. Created a build script (`build-vercel.mjs`) that compiles all necessary TypeScript files:
-   - `gemini.ts` → `gemini.js`
-   - `storage.ts` → `storage.js`
-   - `schema.ts` → `schema.js`
-3. Updated `package.json` to include a `vercel-build` script that runs the build script before the regular build process.
+1. Updated build process to properly compile TypeScript files using esbuild
+2. Ensured all serverless function files are compiled to JavaScript before deployment
+3. Verified that the vercel.json configuration correctly points to the compiled files
 
 ## 2. Login Page Not Accessible (404 NOT_FOUND)
 
@@ -46,108 +37,95 @@ Incorrect routing configuration in `vercel.json`. The routes were pointing direc
    ```
 2. Ensured `server/vercel-entry.ts` properly serves static files from `dist/public` directory.
 
-## 3. Environment Variable Issues
+## 3. API Routes Not Working (404 NOT_FOUND)
 
 ### Error:
-API calls fail due to missing or incorrect API keys.
+API endpoints like `/api/auth/login` return 404 NOT_FOUND errors.
 
 ### Cause:
-Environment variables not synchronized between local `.env` files and production platform settings.
+Incorrect routing configuration in `vercel.json` where API routes were not being directed to the correct handler.
 
 ### Solution:
-1. Ensure `OPENAI_API_KEY` is set in both local `.env` file and Vercel dashboard.
-2. Verify the API key format and validity through direct API testing.
-3. Check that environment variable names match exactly (e.g., `OPENAI_API_KEY` vs `OPENROUTER_API_KEY`).
+1. Updated `vercel.json` to properly route API requests to `server/vercel-handler.ts`:
+   ```json
+   {
+     "src": "/api/(.*)",
+     "dest": "/server/vercel-handler.ts"
+   }
+   ```
+2. Ensured `server/vercel-handler.ts` properly handles all API routes
+3. Removed API route handling from `server/vercel-entry.ts` to prevent conflicts
 
-## 4. File Upload Issues in Vercel
+## 4. Environment Variable Issues
 
 ### Error:
-File uploads fail in Vercel serverless functions.
+Application fails to start or functions incorrectly due to missing or incorrect environment variables.
 
 ### Cause:
-Using `multer` for file uploads is incompatible with Vercel serverless functions.
+Environment variables not properly set in Vercel dashboard or not synchronized with local `.env` file.
 
 ### Solution:
-1. Implement custom file extraction from raw request body using buffer processing.
-2. Handle file uploads by directly processing the request body and extracting files based on content-type and boundary.
-3. Remove `multer` usage in Vercel serverless functions.
+1. Ensure all required environment variables are set in Vercel dashboard
+2. Synchronize environment variables between local `.env` file and Vercel dashboard
+3. Verify that sensitive variables like `DATABASE_URL` and `OPENROUTER_API_KEY` are correctly configured
 
-## 5. Port Configuration Issues
+## 5. File Upload Issues
 
 ### Error:
-Application not accessible on expected port.
+File upload functionality fails in production environment.
 
 ### Cause:
-Environment variables in `.env` files not taking precedence over hardcoded values.
+Vercel serverless functions have limitations with file uploads and temporary file storage.
 
 ### Solution:
-1. Ensure port configuration is read from environment variables.
-2. Set `PORT` in `.env` file to desired port number.
-3. Update application code to use `process.env.PORT` with fallback value.
+1. Implement different handling for file uploads in development vs production
+2. Use Vercel's recommended approach for file handling in serverless environments
+3. Provide clear error messages to users when file uploads are not supported in production
 
-## 6. Missing API Routes
+## 6. Port Conflict Issues
 
 ### Error:
-Frontend cannot communicate with backend API endpoints.
+Server fails to start due to port already being in use.
 
 ### Cause:
-Critical API routes missing from route configurations.
+Previous server instances not properly terminated or multiple services trying to use the same port.
 
 ### Solution:
-1. Ensure all API routes are properly defined in both regular and Vercel-specific route handlers.
-2. Verify that route patterns match frontend expectations.
-3. Test API endpoints independently to confirm they're accessible.
+1. Change port configuration in `.env` file to use an available port
+2. Ensure proper termination of previous server instances
+3. Use process managers to handle server lifecycle
 
-## 7. AI Agent Determinism Issues
+## 7. Database Connection Issues
 
 ### Error:
-AI agents returning inconsistent results for identical inputs.
+Application fails to connect to the database.
 
 ### Cause:
-Temperature parameter not set to 0.0 for deterministic output.
+Incorrect database URL configuration or network connectivity issues.
 
 ### Solution:
-1. Set `temperature=0.0` in all AI agent calls to ensure deterministic output.
-2. Verify that prompts are explicit and detailed enough to guide the AI.
-3. Test AI agents with identical inputs to confirm consistent results.
+1. Verify `DATABASE_URL` is correctly formatted and accessible
+2. Check database credentials and permissions
+3. Ensure the database service is running and accessible from the application environment
 
-## 8. Serverless Function Error Handling
+## 8. AI Agent API Connection Issues
 
 ### Error:
-`FUNCTION_INVOCATION_FAILED` errors due to unhandled exceptions.
+AI agents fail to return proper responses, falling back to mock data.
 
 ### Cause:
-Missing proper error handling in Vercel serverless functions.
+API key issues, network connectivity problems, or incorrect API endpoint configuration.
 
 ### Solution:
-1. Implement `try/catch` blocks in all Vercel serverless functions.
-2. Log errors for debugging purposes.
-3. Return appropriate error responses to clients.
-4. Handle edge cases and invalid inputs gracefully.
+1. Verify `OPENROUTER_API_KEY` is correctly set and valid
+2. Check Vercel logs for specific error messages
+3. Ensure the AI API endpoint is correctly configured in `server/gemini.ts`
+4. Test API connectivity independently to verify the key and endpoint are working
 
-## 9. Module Import Issues
+## Prevention Strategies
 
-### Error:
-`ERR_MODULE_NOT_FOUND` when importing modules in serverless functions.
-
-### Cause:
-Attempting to import TypeScript (.ts) files directly at runtime.
-
-### Solution:
-1. Compile TypeScript files to JavaScript before deployment.
-2. Ensure import statements reference compiled JavaScript (.js) files.
-3. Use build process to ensure correct file extensions in import statements.
-
-## 10. Database Connection Issues
-
-### Error:
-Database functionality limited or unavailable.
-
-### Cause:
-`DATABASE_URL` environment variable not set or incorrect.
-
-### Solution:
-1. Ensure `DATABASE_URL` is set in both local `.env` file and production environment.
-2. Verify database connection string format and credentials.
-3. Test database connectivity independently.
-4. Implement fallback mechanisms for when database is unavailable.
+1. **Regular Testing**: Test all critical functionality after each deployment
+2. **Environment Synchronization**: Keep local and production environments synchronized
+3. **Error Monitoring**: Implement proper error logging and monitoring
+4. **Documentation**: Keep this document updated with new issues and solutions
+5. **Code Reviews**: Implement code review processes to catch potential issues before deployment
