@@ -23,6 +23,10 @@
       "dest": "/server/vercel-entry.ts"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/server/vercel-entry.ts"
     }
