@@ -7,7 +7,6 @@ var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
 console.log("Vercel entry file loaded");
 console.log("__dirname:", __dirname);
-console.log("dist path:", path.join(__dirname, "..", "dist", "public"));
 var config = {
   api: {
     bodyParser: true
@@ -18,12 +17,30 @@ function handler(req, res) {
     res.status(404).json({ message: "API route not found" });
     return;
   }
-  const indexPath = path.join(__dirname, "..", "dist", "public", "index.html");
+  const indexPath = path.join(__dirname, "public", "index.html");
   if (!fs.existsSync(indexPath)) {
     console.error("index.html not found at:", indexPath);
+    const altPath = path.join(__dirname, "..", "dist", "public", "index.html");
+    if (fs.existsSync(altPath)) {
+      console.log("Using alternative path:", altPath);
+      fs.readFile(altPath, "utf8", (err, data) => {
+        if (err) {
+          console.error("Error reading index.html:", err);
+          res.status(500).json({
+            message: "Error reading index.html",
+            error: err.message
+          });
+          return;
+        }
+        res.setHeader("Content-Type", "text/html");
+        res.status(200).send(data);
+      });
+      return;
+    }
     res.status(500).json({
       message: "index.html not found",
-      path: indexPath
+      path: indexPath,
+      altPath
     });
     return;
   }

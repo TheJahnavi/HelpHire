@@ -10,7 +10,6 @@ const __dirname = path.dirname(__filename);
 // Debug logging
 console.log('Vercel entry file loaded');
 console.log('__dirname:', __dirname);
-console.log('dist path:', path.join(__dirname, '..', 'dist', 'public'));
 
 // Add a simple test endpoint
 export const config = {
@@ -30,14 +29,34 @@ export default function handler(req: any, res: any) {
   
   // Serve index.html for all non-API routes (for client-side routing)
   // Serve the index.html file
-  const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
+  const indexPath = path.join(__dirname, "public", "index.html");
   
   // Check if file exists
   if (!fs.existsSync(indexPath)) {
     console.error('index.html not found at:', indexPath);
+    // Try alternative path for development
+    const altPath = path.join(__dirname, "..", "dist", "public", "index.html");
+    if (fs.existsSync(altPath)) {
+      console.log('Using alternative path:', altPath);
+      fs.readFile(altPath, 'utf8', (err, data) => {
+        if (err) {
+          console.error('Error reading index.html:', err);
+          res.status(500).json({ 
+            message: 'Error reading index.html',
+            error: err.message
+          });
+          return;
+        }
+        res.setHeader('Content-Type', 'text/html');
+        res.status(200).send(data);
+      });
+      return;
+    }
+    
     res.status(500).json({ 
       message: 'index.html not found',
-      path: indexPath
+      path: indexPath,
+      altPath: altPath
     });
     return;
   }
