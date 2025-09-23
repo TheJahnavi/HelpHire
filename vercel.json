@@ -6,12 +6,11 @@
       "use": "@vercel/static-build",
       "config": {
         "outputDirectory": "dist/public",
-        "distDir": "dist/public",
-        "buildCommand": "npm run vercel-build"
+        "distDir": "dist/public"
       }
     },
     {
-      "src": "server/vercel-handler.js",
+      "src": "server/vercel-entry.ts",
       "use": "@vercel/node",
       "config": {
         "includeFiles": "dist/**"
@@ -21,11 +20,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server/vercel-handler.js"
+      "dest": "/server/vercel-entry.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/server/vercel-entry.ts"
     }
   ]
 }
