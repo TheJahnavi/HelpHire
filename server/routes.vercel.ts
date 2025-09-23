@@ -1220,7 +1220,7 @@ export function registerRoutes(app: Application) {
             extractedData = await extractResumeData(resumeText);
           } catch (aiError) {
             console.error('AI extraction failed, using mock extraction:', aiError);
-            // Fallback to mock extraction
+            // Fallback to mock extraction - fixed to match ExtractedCandidate interface
             extractedData = {
               name: 'Mock Candidate',
               email: 'mock@example.com',
@@ -1228,16 +1228,13 @@ export function registerRoutes(app: Application) {
               skills: ['JavaScript', 'React', 'Node.js'],
               experience: [
                 {
-                  job_title: 'Software Developer',
                   company: 'Tech Corp',
+                  position: 'Software Developer',
                   duration: '3 years',
-                  projects: [
-                    'Developed web applications',
-                    'Implemented RESTful APIs'
-                  ]
+                  description: 'Developed web applications and implemented RESTful APIs'
                 }
               ],
-              total_experience: '3 years',
+              total_experience: '3 years total',
               summary: 'Mock candidate with experience in web development.'
             };
           }

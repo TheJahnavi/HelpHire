@@ -1,7 +1,7 @@
 // server/gemini.ts
 import OpenAI from "openai";
 var openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "your-openrouter-api-key-here",
+  apiKey: process.env.OPENROUTER_API_KEY || "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",
   baseURL: "https://openrouter.ai/api/v1"
 });
 async function extractResumeData(resumeText) {
