@@ -24,7 +24,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/server/vercel-entry.ts"
+      "dest": "/server/vercel-entry.js"
     }
   ]
 }

@@ -30,4 +30,9 @@ console.log('Compiling vercel-handler.ts...');
 execSync('npx esbuild server/vercel-handler.ts --platform=node --bundle --format=esm --outfile=server/vercel-handler.js --external:@vercel/node --external:bcryptjs --external:zod --external:@neondatabase/serverless --external:drizzle-orm --external:drizzle-zod --external:mammoth --external:fs --external:path', { stdio: 'inherit' });
 console.log('✅ Compiled vercel-handler.ts');
 
+// Compile vercel-entry.ts to vercel-entry.js
+console.log('Compiling vercel-entry.ts...');
+execSync('npx esbuild server/vercel-entry.ts --platform=node --bundle --format=esm --outfile=server/vercel-entry.js --external:express --external:path --external:fs --external:url --external:dotenv', { stdio: 'inherit' });
+console.log('✅ Compiled vercel-entry.ts');
+
 console.log('✅ Build completed successfully');
