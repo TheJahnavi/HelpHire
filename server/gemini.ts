@@ -39,7 +39,7 @@ export interface InterviewQuestions {
 }
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
   baseURL: 'https://openrouter.ai/api/v1',
 });
 
@@ -47,18 +47,44 @@ const openai = new OpenAI({
 export async function extractResumeData(resumeText: string): Promise<ExtractedCandidate> {
   try {
     const prompt = `
-You are an expert HR resume parser. Your task is to extract comprehensive candidate information from the provided resume text with maximum accuracy and precision. Follow these instructions exactly and respond only with valid JSON.
+Act as a specialized data extraction agent. Analyze the provided resume content and extract key information with high accuracy. The output must be a single JSON object.
 
-INSTRUCTIONS:
-1. Extract all information with 100% accuracy. If uncertain, mark as "Not specified".
-2. Follow the exact JSON structure provided below. Do not add or remove fields.
-3. For arrays, provide complete lists. If none, return empty array [].
-4. For experience, extract each job with company, position, duration, and detailed description.
-5. Calculate total experience as a string like "X years total".
-6. Extract professional summary/profile/overview section exactly as written.
-7. Extract all technical skills as an array of strings.
-8. Extract portfolio links (GitHub, LinkedIn, personal website) as array of URLs.
-9. Extract email address exactly as written.
+Input: Raw text content from a single resume.
+
+Output Requirements:
+Extract the following data points and format them into a single, comprehensive JSON object.
+
+name: The full name of the candidate.
+
+email: The primary email address of the candidate.
+
+portfolio_link: Any URLs found (e.g., GitHub, personal website, LinkedIn) as an array of strings. If no links are found, return null.
+
+skills: A comprehensive list of all skills mentioned. Return as an array of strings.
+
+experience: A detailed, structured breakdown of the candidate's work history. For each role, extract:
+
+job_title: The title of the position.
+
+company: The company name.
+
+duration: The duration of the role (e.g., "3 years," "2021-2024").
+
+projects: A list of projects, key responsibilities, or quantifiable achievements for that role, as an array of strings.
+
+total_experience: The total number of years of professional experience, calculated from the listed jobs. The output should be a single string (e.g., "5 years").
+
+summary: A concise, professional summary of the resume. The summary must be a single paragraph and no more than five lines long.
+
+Instructions & Constraints:
+
+You must parse the text and return only a JSON object. No conversational language, introductory phrases, or explanations.
+
+For experience, ensure all projects and responsibilities are listed as a detailed array of strings, not a single summarized string.
+
+If a field (like portfolio_link) is not found, its value must be null.
+
+The final output should be a complete and valid JSON object.
 
 RESUME TEXT:
 ${resumeText}
@@ -67,25 +93,23 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 {
   "name": "string",
   "email": "string",
-  "portfolio_link": ["string URLs or empty array"],
+  "portfolio_link": ["string URLs or null"],
   "skills": ["string array of technical skills or empty array"],
   "experience": [
     {
+      "job_title": "string",
       "company": "string",
-      "position": "string",
       "duration": "string (e.g. '2020 - Present' or '2 years')",
-      "start_year": "number (if determinable) or null",
-      "end_year": "number (if determinable) or null",
-      "description": "string (detailed responsibilities and achievements)"
+      "projects": ["string array of projects/responsibilities"]
     }
   ],
   "total_experience": "string (e.g. '4 years total')",
-  "summary": "string (professional summary/profile/overview section)"
+  "summary": "string (professional summary - max 5 lines)"
 }
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 2000,
@@ -122,7 +146,35 @@ export async function calculateJobMatch(
 ): Promise<MatchResult> {
   try {
     const prompt = `
-You are an expert HR recruiter tasked with precisely calculating how well a candidate matches a job posting. Follow these instructions exactly and respond only with valid JSON.
+Act as a specialized AI agent to analyze a candidate's qualifications against a specific job role. The output must be a structured JSON object.
+
+Input:
+
+Candidate Data: A JSON object with the candidate's skills, experience, and summary from Agent 1.
+
+Job Data: A JSON object with the job's title, description, and required_skills.
+
+Instructions & Constraints:
+The analysis must be based only on the provided Candidate Data and Job Data. Do not use external knowledge.
+
+Analysis and Output Generation:
+Your primary task is to act as a comparative engine, generating a comprehensive match analysis. The final output must be a single JSON object with the following keys:
+
+candidate_name: The full name of the candidate.
+
+candidate_email: The email address of the candidate.
+
+match_percentage: A single numerical score (0-100) representing the overall match. The score must be justified by the strengths and areas_for_improvement you provide.
+
+strengths: An array of at least five specific points. Each point must directly justify the match percentage by highlighting a clear alignment between a candidate's resume detail and a job requirement.
+
+areas_for_improvement: An array of specific reasons or missing qualifications that contribute to the difference from a 100% match. Each point must identify a requirement from the job description that is not mentioned in the candidate's resume.
+
+Example for strengths and areas_for_improvement:
+
+Strength: "The candidate has 5 years of experience as a 'Lead Automation QA,' aligning perfectly with the job's senior role requirement."
+
+Weakness: "The job description requires experience with 'SQL database management,' which was not mentioned in the candidate's resume."
 
 CANDIDATE PROFILE:
 Name: ${candidate.name}
@@ -142,29 +194,22 @@ Description: ${jobDescription}
 Experience Required: ${experienceRequired}
 Additional Notes: ${additionalNotes}
 
-INSTRUCTIONS:
-1. Calculate a precise match percentage (0-100) based on skills, experience, and job requirements.
-2. Identify 3-5 key strengths that make this candidate a good fit (be specific and cite evidence from their resume).
-3. Identify 3-5 specific areas where the candidate could improve to better match the role (be constructive and specific).
-4. Base your analysis solely on the provided information. Do not make assumptions.
-5. Return only valid JSON, no markdown, no extra text.
-
-RESPONSE FORMAT:
+RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 {
   "candidate_name": "string",
   "candidate_email": "string",
   "match_percentage": number (0-100),
   "strengths": {
-    "description": ["string array of specific strengths with evidence"]
+    "description": ["string array of specific strengths with evidence - at least 5 points"]
   },
   "areas_for_improvement": {
-    "description": ["string array of specific improvement areas with suggestions"]
+    "description": ["string array of specific improvement areas with suggestions - at least 5 points"]
   }
 }
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 1500,
@@ -211,7 +256,37 @@ export async function generateInterviewQuestions(
 ): Promise<InterviewQuestions> {
   try {
     const prompt = `
-You are an expert HR interviewer tasked with generating targeted interview questions for a candidate based on their resume and the job requirements. Follow these instructions exactly and respond only with valid JSON.
+Act as an expert interview question generator. Create a curated list of questions based on a candidate's profile and a specific job role's requirements. The questions must be categorized for different interview stages. The output must be a structured JSON object.
+
+Input:
+
+Candidate Data: The JSON object containing the candidate's skills, experience, and projects from Agent 1.
+
+Job Data: The JSON object containing the job's title, description, and required_skills.
+
+Instructions & Constraints:
+
+The questions must be tailored to the specific skills, projects, and experiences mentioned in the candidate's resume and the requirements in the job description.
+
+Generate a minimum of five unique questions for each category.
+
+Do not generate questions that can be answered with a simple "yes" or "no."
+
+Do not generate generic questions like "Tell me about yourself."
+
+Question Categories and Content:
+
+Technical Questions:
+
+Focus: Test the candidate's stated technical skills and their experience with specific technologies from their resume. Questions should be based on the candidate's projects and past roles.
+
+Behavioral Questions:
+
+Focus: Explore the candidate's past work behavior and soft skills. These questions must be tied to specific scenarios from the candidate's experience section.
+
+Job-Specific Questions:
+
+Focus: Relate directly to the responsibilities and challenges of the job role. Use details from the job_description to formulate these.
 
 CANDIDATE PROFILE:
 Name: ${candidate.name}
@@ -229,24 +304,16 @@ Title: ${jobTitle}
 Required Skills: ${requiredSkills.join(', ')}
 Description: ${jobDescription}
 
-INSTRUCTIONS:
-1. Generate 3-5 technical questions that test the candidate's proficiency in the required skills.
-2. Generate 3-5 behavioral questions that assess soft skills and cultural fit.
-3. Generate 2-3 scenario-based questions that test problem-solving abilities in job-specific contexts.
-4. Ensure questions are relevant to both the candidate's background and job requirements.
-5. Base your questions solely on the provided information. Do not make assumptions.
-6. Return only valid JSON, no markdown, no extra text.
-
-RESPONSE FORMAT:
+RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 {
-  "technical": ["string array of technical questions"],
-  "behavioral": ["string array of behavioral questions"],
-  "scenario_based": ["string array of scenario-based questions"]
+  "technical": ["string array of technical questions - minimum 5 unique questions"],
+  "behavioral": ["string array of behavioral questions - minimum 5 unique questions"],
+  "job_specific": ["string array of job-specific questions - minimum 5 unique questions"]
 }
 `;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 1500,
@@ -259,7 +326,7 @@ RESPONSE FORMAT:
     return {
       technical: Array.isArray(parsed.technical) ? parsed.technical : [],
       behavioral: Array.isArray(parsed.behavioral) ? parsed.behavioral : [],
-      scenario_based: Array.isArray(parsed.scenario_based) ? parsed.scenario_based : []
+      job_specific: Array.isArray(parsed.job_specific) ? parsed.job_specific : []
     };
   } catch (error) {
     console.error("Error in generateInterviewQuestions:", error);
@@ -267,7 +334,7 @@ RESPONSE FORMAT:
     return {
       technical: [],
       behavioral: [],
-      scenario_based: []
+      job_specific: []
     };
   }
 }
