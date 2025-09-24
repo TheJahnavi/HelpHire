@@ -7,16 +7,20 @@
       "config": {
         "outputDirectory": "dist/public"
       }
+    },
+    {
+      "src": "server/vercel-handler.ts",
+      "use": "@vercel/node"
     }
   ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/server/vercel-handler.ts"
+      "destination": "/api"
     },
     {
       "source": "/(.*)",
-      "destination": "/dist/public/index.html"
+      "destination": "/index.html"
     }
   ]
 }
