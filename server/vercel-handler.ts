@@ -75,6 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         message: 'Server is running',
         timestamp: new Date().toISOString(),
         DATABASE_URL_SET: !!process.env.DATABASE_URL,
+        DATABASE_CONNECTION_STATUS: !!db, // Add database connection status
         VERCEL_ENV: process.env.VERCEL
       });
     }
@@ -84,6 +85,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (url === '/api/auth/login') {
         // Handle login
         try {
+          // Check if database is available
+          if (!db) {
+            return res.status(500).json({ 
+              message: "Database connection is not available. Please check environment variables.",
+              error: "DATABASE_URL not set or invalid"
+            });
+          }
+          
           const { email, password, role, company } = req.body;
           
           // Find user by email
@@ -124,11 +133,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         } catch (error) {
           console.error("Login error:", error);
-          return res.status(500).json({ message: "Failed to login" });
+          return res.status(500).json({ 
+            message: "Failed to login",
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
         }
       } else if (url === '/api/auth/signup') {
         // Handle signup
         try {
+          // Check if database is available
+          if (!db) {
+            return res.status(500).json({ 
+              message: "Database connection is not available. Please check environment variables.",
+              error: "DATABASE_URL not set or invalid"
+            });
+          }
+          
           const { name, email, password, role, company } = req.body;
           
           // Check if user already exists
@@ -165,7 +185,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({ message: "User created successfully", userId: user.id });
         } catch (error) {
           console.error("Signup error:", error);
-          return res.status(500).json({ message: "Failed to create user" });
+          return res.status(500).json({ 
+            message: "Failed to create user",
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
         }
       }
       
