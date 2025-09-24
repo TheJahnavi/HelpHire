@@ -54,6 +54,15 @@
       "dest": "/_vercel/speed-insights/$1"
     },
     {
+      "src": "/(.+)",
+      "dest": "/dist/public/$1",
+      "check": true
+    },
+    {
+      "src": "/",
+      "dest": "/dist/vercel-entry.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/dist/vercel-entry.js"
     }
