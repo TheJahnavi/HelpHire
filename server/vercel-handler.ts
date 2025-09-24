@@ -75,7 +75,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         message: 'Server is running',
         timestamp: new Date().toISOString(),
         DATABASE_URL_SET: !!process.env.DATABASE_URL,
-        DATABASE_CONNECTION_STATUS: !!db, // Add database connection status
         VERCEL_ENV: process.env.VERCEL
       });
     }
@@ -85,14 +84,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (url === '/api/auth/login') {
         // Handle login
         try {
-          // Check if database is available
-          if (!db) {
-            return res.status(500).json({ 
-              message: "Database connection is not available. Please check environment variables.",
-              error: "DATABASE_URL not set or invalid"
-            });
-          }
-          
           const { email, password, role, company } = req.body;
           
           // Find user by email
@@ -141,14 +132,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else if (url === '/api/auth/signup') {
         // Handle signup
         try {
-          // Check if database is available
-          if (!db) {
-            return res.status(500).json({ 
-              message: "Database connection is not available. Please check environment variables.",
-              error: "DATABASE_URL not set or invalid"
-            });
-          }
-          
           const { name, email, password, role, company } = req.body;
           
           // Check if user already exists
