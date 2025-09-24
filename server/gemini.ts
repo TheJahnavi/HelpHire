@@ -35,11 +35,11 @@ export interface MatchResult {
 export interface InterviewQuestions {
   technical: string[];
   behavioral: string[];
-  job_specific: string[];  // Changed from scenario_based to job_specific
+  job_specific: string[];
 }
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
   baseURL: 'https://openrouter.ai/api/v1',
 });
 
@@ -109,7 +109,7 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 `;
 
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      model: "deepseek/deepseek-chat-v3-0324:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 2000,
@@ -209,7 +209,7 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 `;
 
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      model: "deepseek/deepseek-chat-v3-0324:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 1500,
@@ -313,7 +313,7 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 `;
 
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-r1-0528-qwen3-8b:free",
+      model: "deepseek/deepseek-chat-v3-0324:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 1500,
