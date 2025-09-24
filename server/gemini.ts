@@ -35,11 +35,11 @@ export interface MatchResult {
 export interface InterviewQuestions {
   technical: string[];
   behavioral: string[];
-  scenario_based: string[];
+  job_specific: string[];  // Changed from scenario_based to job_specific
 }
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
   baseURL: 'https://openrouter.ai/api/v1',
 });
 
