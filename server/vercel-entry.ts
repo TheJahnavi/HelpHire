@@ -17,14 +17,8 @@ export const config = {
 };
 
 export default function handler(req: any, res: any) {
-  // Handle API routes - these should be handled by vercel-handler.ts
-  if (req.url.startsWith("/api/")) {
-    // This should not happen as API routes are handled by vercel-handler.ts
-    res.status(404).json({ message: "API route not found" });
-    return;
-  }
-
-  // For all other routes, serve the SPA index.html
+  // For all routes, serve the SPA index.html
+  // API routes will be handled by vercel-handler.ts based on vercel.json configuration
   const indexPath = path.join(__dirname, "public", "index.html");
   
   console.log("Checking for index.html at:", indexPath);
