@@ -89,6 +89,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Find user by email
           const user = await storage.getUserByEmail(email);
           if (!user || !user.passwordHash) {
+            // Provide more specific error message when database connection fails
+            if (!process.env.DATABASE_URL) {
+              return res.status(500).json({ 
+                message: "Database connection is not available. Please check environment variables.",
+                error: "DATABASE_URL environment variable is not set"
+              });
+            }
             return res.status(401).json({ message: "Invalid credentials" });
           }
 
@@ -124,6 +131,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         } catch (error) {
           console.error("Login error:", error);
+          // Provide more specific error message when database connection fails
+          if (!process.env.DATABASE_URL) {
+            return res.status(500).json({ 
+              message: "Database connection is not available. Please check environment variables.",
+              error: "DATABASE_URL environment variable is not set"
+            });
+          }
           return res.status(500).json({ 
             message: "Failed to login",
             error: error instanceof Error ? error.message : "Unknown error"
@@ -137,6 +151,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Check if user already exists
           const existingUser = await storage.getUserByEmail(email);
           if (existingUser) {
+            // Provide more specific error message when database connection fails
+            if (!process.env.DATABASE_URL) {
+              return res.status(500).json({ 
+                message: "Database connection is not available. Please check environment variables.",
+                error: "DATABASE_URL environment variable is not set"
+              });
+            }
             return res.status(400).json({ message: "User already exists with this email" });
           }
 
@@ -168,6 +189,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({ message: "User created successfully", userId: user.id });
         } catch (error) {
           console.error("Signup error:", error);
+          // Provide more specific error message when database connection fails
+          if (!process.env.DATABASE_URL) {
+            return res.status(500).json({ 
+              message: "Database connection is not available. Please check environment variables.",
+              error: "DATABASE_URL environment variable is not set"
+            });
+          }
           return res.status(500).json({ 
             message: "Failed to create user",
             error: error instanceof Error ? error.message : "Unknown error"
