@@ -5,66 +5,18 @@
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "outputDirectory": "dist/public",
-        "distDir": "dist/public"
-      }
-    },
-    {
-      "src": "dist/vercel-entry.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": "dist/**"
-      }
-    },
-    {
-      "src": "server/vercel-handler.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": "dist/**"
+        "outputDirectory": "dist/public"
       }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/health",
-      "dest": "/server/vercel-handler.ts"
+      "source": "/api/(.*)",
+      "destination": "/server/vercel-handler.ts"
     },
     {
-      "src": "/api/auth/login",
-      "dest": "/server/vercel-handler.ts"
-    },
-    {
-      "src": "/api/auth/signup",
-      "dest": "/server/vercel-handler.ts"
-    },
-    {
-      "src": "/api/auth/user",
-      "dest": "/server/vercel-handler.ts"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/server/vercel-handler.ts"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "/dist/public/assets/$1"
-    },
-    {
-      "src": "/_vercel/speed-insights/(.*)",
-      "dest": "/_vercel/speed-insights/$1"
-    },
-    {
-      "src": "/(.+)",
-      "dest": "/dist/public/$1",
-      "check": true
-    },
-    {
-      "src": "/",
-      "dest": "/dist/vercel-entry.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/dist/vercel-entry.js"
+      "source": "/(.*)",
+      "destination": "/dist/public/index.html"
     }
   ]
 }
