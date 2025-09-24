@@ -39,7 +39,7 @@ export interface InterviewQuestions {
 }
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || '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',
   baseURL: 'https://openrouter.ai/api/v1',
 });
 
@@ -109,7 +109,7 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 `;
 
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-chat-v3-0324:free",
+      model: "deepseek/deepseek-r1:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 2000,
@@ -209,7 +209,7 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 `;
 
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-chat-v3-0324:free",
+      model: "deepseek/deepseek-r1:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 1500,
@@ -313,7 +313,7 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
 `;
 
     const response = await openai.chat.completions.create({
-      model: "deepseek/deepseek-chat-v3-0324:free",
+      model: "deepseek/deepseek-r1:free",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.0,
       max_tokens: 1500,
