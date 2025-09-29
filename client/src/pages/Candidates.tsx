@@ -99,6 +99,17 @@ export default function Candidates() {
         throw new Error("Interview link and technical person email are required when scheduling an interview");
       }
       
+      // Handle AI interview trigger
+      if (status === 'ai_interview_triggered') {
+        // Call the new API endpoint to trigger AI interview
+        const response = await api.triggerInterview(id.toString());
+        if (!response.success) {
+          throw new Error(response.message || "Failed to trigger AI interview");
+        }
+        // Update the candidate status to 'pending_schedule'
+        return apiRequest(`/api/candidates/${id}`, { method: "PUT", body: { status: 'pending_schedule' } });
+      }
+      
       return apiRequest(`/api/candidates/${id}`, { method: "PUT", body: { status, interviewLink, technicalPersonEmail } });
     },
     onSuccess: () => {
@@ -187,7 +198,8 @@ export default function Candidates() {
       case 'resume_reviewed':
         return [
           { value: 'resume_reviewed', label: 'Resume Reviewed' },
-          { value: 'interview_scheduled', label: 'Schedule Interview' }
+          { value: 'interview_scheduled', label: 'Schedule Interview' },
+          { value: 'ai_interview_triggered', label: 'Trigger AI Interview' } // New option
         ];
       case 'interview_scheduled':
         return [

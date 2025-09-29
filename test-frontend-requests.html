@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frontend Request Test</title>
+</head>
+<body>
+    <h1>Frontend Request Test</h1>
+    <button onclick="testSuperAdmin()">Test Super Admin Dashboard</button>
+    <button onclick="testCompanyAdmin()">Test Company Admin Dashboard</button>
+    <div id="results"></div>
+
+    <script>
+        async function makeRequest(url) {
+            try {
+                console.log('Making request to:', url);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.log('Error response:', errorText);
+                    return { error: `HTTP ${response.status}: ${errorText}` };
+                }
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                return { data };
+            } catch (error) {
+                console.log('Request error:', error);
+                return { error: error.message };
+            }
+        }
+        
+        async function testSuperAdmin() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>Testing Super Admin Dashboard...</p>';
+            
+            const result = await makeRequest('/api/super-admin/dashboard-stats?role=Super%20Admin');
+            
+            if (result.error) {
+                results.innerHTML = `<p style="color: red;">Error: ${result.error}</p>`;
+            } else {
+                results.innerHTML = `<pre>${JSON.stringify(result.data, null, 2)}</pre>`;
+            }
+        }
+        
+        async function testCompanyAdmin() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>Testing Company Admin Dashboard...</p>';
+            
+            const statsResult = await makeRequest('/api/company-admin/dashboard-stats?role=Company%20Admin');
+            const chartResult = await makeRequest('/api/company-admin/chart-data?role=Company%20Admin');
+            
+            if (statsResult.error) {
+                results.innerHTML = `<p style="color: red;">Stats Error: ${statsResult.error}</p>`;
+            } else if (chartResult.error) {
+                results.innerHTML = `<p style="color: red;">Chart Error: ${chartResult.error}</p>`;
+            } else {
+                results.innerHTML = `
+                    <h2>Stats Data:</h2>
+                    <pre>${JSON.stringify(statsResult.data, null, 2)}</pre>
+                    <h2>Chart Data:</h2>
+                    <pre>${JSON.stringify(chartResult.data, null, 2)}</pre>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

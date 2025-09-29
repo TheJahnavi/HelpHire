@@ -11,6 +11,8 @@ import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type 
 import connectPg from "connect-pg-simple";
 import { createServer, type Server } from "http";
 import * as mammoth from "mammoth";
+import { db } from "./db.js";
+import { users, jobs } from "../shared/schema.js";
 
 // Setup multer for file uploads
 const upload = multer({
@@ -55,6 +57,10 @@ function setupSession(app: Express) {
 
 // Authentication middleware
 const isAuthenticated = (req: any, res: any, next: any) => {
+  console.log("Authentication middleware called");
+  console.log("Session:", req.session);
+  console.log("Session user:", req.session?.user);
+  
   // In development environment, allow access for testing
   if (process.env.NODE_ENV === 'development') {
     // For development, we'll mock a user session
@@ -67,12 +73,15 @@ const isAuthenticated = (req: any, res: any, next: any) => {
         companyId: null  // We'll set this properly in the route handlers
       };
     }
+    console.log("Development mode: Using mock user");
     return next();
   }
   
   if (req.session && req.session.user) {
+    console.log("User authenticated");
     return next();
   }
+  console.log("User not authenticated");
   return res.status(401).json({ message: "Unauthorized" });
 };
 
@@ -1685,6 +1694,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating dummy data:", error);
       res.status(500).json({ message: "Failed to create dummy data", error: (error as Error).message });
+    }
+  });
+
+  // Add new API endpoints for Company Admin dashboard stats
+  app.get('/api/company-admin/dashboard-stats', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      // Get user and company info
+      const user = await storage.getUser(sessionUser.id);
+      if (!user || !user.companyId) {
+        return res.status(404).json({ message: "User or company not found" });
+      }
+      
+      const companyId = user.companyId;
+      
+      // Get job stats for the company
+      const totalJobsResult = await storage.getJobsByCompany(companyId);
+      const totalJobs = totalJobsResult.length;
+      const activeJobs = totalJobsResult.filter(job => job.jobStatus === 'active').length;
+      
+      // Get HR users count for the company
+      const hrUsers = await storage.getUsersByCompany(companyId);
+      const hrUsersCount = hrUsers.length;
+      
+      // Get candidate stats for the company
+      const candidates = await storage.getCandidatesByCompany(companyId);
+      const candidateStats: Array<{ status: string; count: number }> = [];
+      
+      // Group candidates by status
+      const statusMap: Record<string, number> = {};
+      candidates.forEach(candidate => {
+        const status = candidate.status || 'applied';
+        statusMap[status] = (statusMap[status] || 0) + 1;
+      });
+      
+      Object.keys(statusMap).forEach(status => {
+        candidateStats.push({ status, count: statusMap[status] });
+      });
+      
+      // Get applications over time (monthly)
+      const chartData: Array<{ month: string; candidates: number }> = [];
+      
+      // Group candidates by month
+      const monthMap: Record<string, number> = {};
+      candidates.forEach(candidate => {
+        if (candidate.createdAt) {
+          const month = candidate.createdAt.toISOString().substring(0, 7); // YYYY-MM
+          monthMap[month] = (monthMap[month] || 0) + 1;
+        }
+      });
+      
+      Object.keys(monthMap).forEach(month => {
+        chartData.push({ month, candidates: monthMap[month] });
+      });
+      
+      // Sort by month
+      chartData.sort((a, b) => a.month.localeCompare(b.month));
+      
+      // Get status breakdown for pie chart
+      const statusBreakdown: Array<{ name: string; value: number }> = [];
+      Object.keys(statusMap).forEach(status => {
+        statusBreakdown.push({ name: status, value: statusMap[status] });
+      });
+      
+      res.json({
+        jobStats: { total: totalJobs, active: activeJobs, hrUsers: hrUsersCount },
+        candidateStats,
+        chartData,
+        statusBreakdown
+      });
+    } catch (error) {
+      console.error("Error fetching company admin dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Add cascading delete endpoint for Super Admins
+  app.delete('/api/super-admin/companies/:id', isAuthenticated, async (req: any, res: any) => {
+    try {
+      console.log("Cascading delete endpoint called");
+      const sessionUser = req.session.user;
+      console.log("Session user:", sessionUser);
+      
+      // Check if user is a Super Admin
+      if (sessionUser.role !== 'Super Admin') {
+        console.log("Access denied: User is not a Super Admin");
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      const companyId = parseInt(req.params.id);
+      console.log("Company ID to delete:", companyId);
+      if (isNaN(companyId)) {
+        console.log("Invalid company ID");
+        return res.status(400).json({ message: "Invalid company ID" });
+      }
+      
+      // Perform cascading delete
+      console.log("Calling storage.deleteCompanyAndAssociatedData");
+      const result = await storage.deleteCompanyAndAssociatedData(companyId);
+      console.log("Delete result:", result);
+      
+      if (result.success) {
+        console.log("Sending success response");
+        return res.json({ success: true, message: result.message });
+      } else {
+        console.log("Sending error response");
+        return res.status(404).json({ success: false, message: result.message });
+      }
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      return res.status(500).json({ message: "Failed to delete company" });
+    }
+  });
+
+  // Add new API endpoints for Super Admin dashboard stats
+  app.get('/api/super-admin/dashboard-stats', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Super Admin
+      if (sessionUser.role !== 'Super Admin') {
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      // Check if database is available
+      if (!db) {
+        return res.status(500).json({ message: "Database connection not available" });
+      }
+      
+      // Get platform stats
+      const companies = await storage.getCompanies();
+      const allUsers = await db!.select().from(users);
+      const allJobs = await db!.select().from(jobs);
+      
+      const platformStats = {
+        companies: companies.length,
+        users: allUsers.length,
+        jobs: allJobs.length
+      };
+      
+      // Get jobs per company (top 10)
+      const companyJobMap: Record<number, { companyName: string; jobCount: number }> = {};
+      
+      for (const job of allJobs) {
+        const companyId = job.companyId;
+        if (companyId) {
+          if (!companyJobMap[companyId]) {
+            const company = companies.find(c => c.id === companyId);
+            companyJobMap[companyId] = {
+              companyName: company ? company.companyName : `Company ${companyId}`,
+              jobCount: 0
+            };
+          }
+          companyJobMap[companyId].jobCount += 1;
+        }
+      }
+      
+      // Convert to array and sort by job count
+      const companyJobStats = Object.values(companyJobMap)
+        .sort((a, b) => b.jobCount - a.jobCount)
+        .slice(0, 10); // Top 10 companies
+      
+      // Get user roles breakdown
+      const roleMap: Record<string, number> = {};
+      allUsers.forEach((user: any) => {
+        const role = user.role || 'Unknown';
+        roleMap[role] = (roleMap[role] || 0) + 1;
+      });
+      
+      const userRolesBreakdown: Array<{ role: string; count: number }> = [];
+      Object.keys(roleMap).forEach(role => {
+        userRolesBreakdown.push({ role, count: roleMap[role] });
+      });
+      
+      // Get new companies over time (monthly)
+      const newCompaniesData: Array<{ month: string; count: number }> = [];
+      
+      // Group companies by month
+      const monthMap: Record<string, number> = {};
+      companies.forEach(company => {
+        if (company.createdAt) {
+          const month = company.createdAt.toISOString().substring(0, 7); // YYYY-MM
+          monthMap[month] = (monthMap[month] || 0) + 1;
+        }
+      });
+      
+      Object.keys(monthMap).forEach(month => {
+        newCompaniesData.push({ month, count: monthMap[month] });
+      });
+      
+      // Sort by month
+      newCompaniesData.sort((a, b) => a.month.localeCompare(b.month));
+      
+      res.json({
+        platformStats,
+        companyJobStats,
+        userRolesBreakdown,
+        newCompaniesData
+      });
+    } catch (error) {
+      console.error("Error fetching super admin dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
     }
   });
 

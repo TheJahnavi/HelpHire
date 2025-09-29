@@ -183,6 +183,75 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Add cascading delete functionality for companies
+  async deleteCompanyAndAssociatedData(companyId: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      const database = this.checkDatabase();
+      console.log(`Starting cascading delete for company ID: ${companyId}`);
+      
+      // First, get all jobs for this company to delete associated candidates
+      const companyJobs = await database.select().from(jobs).where(eq(jobs.companyId, companyId));
+      const jobIds = companyJobs.map(job => job.id);
+      console.log(`Found ${jobIds.length} jobs for company ${companyId}`);
+      
+      // Delete all candidates associated with jobs in this company
+      if (jobIds.length > 0) {
+        // Delete candidates in batches to avoid SQL limitations
+        for (const jobId of jobIds) {
+          console.log(`Deleting candidates for job ID: ${jobId}`);
+          await database.delete(candidates).where(eq(candidates.jobId, jobId));
+        }
+      }
+      
+      // Also delete candidates handled by users in this company
+      // Get all users in this company first
+      const companyUsers = await database.select().from(users).where(eq(users.companyId, companyId));
+      const userIds = companyUsers.map(user => user.id);
+      console.log(`Found ${userIds.length} users for company ${companyId}`);
+      
+      // Delete candidates handled by these users
+      if (userIds.length > 0) {
+        for (const userId of userIds) {
+          console.log(`Deleting candidates handled by user ID: ${userId}`);
+          await database.delete(candidates).where(eq(candidates.hrHandlingUserId, userId));
+        }
+      }
+      
+      // Delete all jobs for this company
+      console.log(`Deleting all jobs for company ${companyId}`);
+      await database.delete(jobs).where(eq(jobs.companyId, companyId));
+      
+      // Delete all notifications and todos for users in this company
+      if (userIds.length > 0) {
+        // Delete notifications and todos in batches
+        for (const userId of userIds) {
+          console.log(`Deleting notifications and todos for user ID: ${userId}`);
+          await database.delete(notifications).where(eq(notifications.userId, userId));
+          await database.delete(todos).where(eq(todos.userId, userId));
+        }
+      }
+      
+      // Delete all users in this company
+      console.log(`Deleting all users for company ${companyId}`);
+      await database.delete(users).where(eq(users.companyId, companyId));
+      
+      // Finally, delete the company itself
+      console.log(`Deleting company ${companyId}`);
+      const result = await database.delete(companies).where(eq(companies.id, companyId)).returning();
+      
+      if (result.length > 0) {
+        console.log(`Company ${companyId} deleted successfully`);
+        return { success: true, message: "Company and all associated data deleted successfully" };
+      } else {
+        console.log(`Company ${companyId} not found`);
+        return { success: false, message: "Company not found" };
+      }
+    } catch (error) {
+      console.error("Error in deleteCompanyAndAssociatedData:", error);
+      return { success: false, message: "Failed to delete company and associated data" };
+    }
+  }
+
   // Job operations
   async getJobsByCompany(companyId: number): Promise<Job[]> {
     try {
@@ -374,6 +443,127 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error in deleteCandidate:", error);
       return false;
+    }
+  }
+
+  // Add new functions for AI Interview System
+  async updateCandidateStatus(id: number, status: string): Promise<Candidate> {
+    try {
+      const database = this.checkDatabase();
+      console.log(`Updating candidate ${id} status to: ${status}`);
+      
+      // Update both status and interviewStatus fields
+      const [candidate] = await database
+        .update(candidates)
+        .set({ 
+          status: status,
+          interviewStatus: status
+        })
+        .where(eq(candidates.id, id))
+        .returning();
+        
+      console.log(`Candidate status updated:`, candidate);
+      return candidate;
+    } catch (error) {
+      console.error("Error in updateCandidateStatus:", error);
+      throw error;
+    }
+  }
+
+  async updateInterviewSchedule(token: string, datetime: Date, link: string): Promise<Candidate> {
+    try {
+      const database = this.checkDatabase();
+      console.log(`Updating interview schedule for token: ${token}`);
+      
+      const [candidate] = await database
+        .update(candidates)
+        .set({ 
+          interviewDatetime: datetime,
+          meetingLink: link,
+          interviewStatus: 'scheduled'
+        })
+        .where(eq(candidates.schedulerToken, token))
+        .returning();
+        
+      console.log(`Interview schedule updated:`, candidate);
+      return candidate;
+    } catch (error) {
+      console.error("Error in updateInterviewSchedule:", error);
+      throw error;
+    }
+  }
+
+  async updateInterviewResults(id: number, transcriptUrl: string, reportUrl: string): Promise<Candidate> {
+    try {
+      const database = this.checkDatabase();
+      console.log(`Updating interview results for candidate ${id}`);
+      
+      const [candidate] = await database
+        .update(candidates)
+        .set({ 
+          transcriptUrl: transcriptUrl,
+          reportUrl: reportUrl,
+          interviewStatus: 'report_generated'
+        })
+        .where(eq(candidates.id, id))
+        .returning();
+        
+      console.log(`Interview results updated:`, candidate);
+      return candidate;
+    } catch (error) {
+      console.error("Error in updateInterviewResults:", error);
+      throw error;
+    }
+  }
+
+  async getCandidateForAI(id: number): Promise<Candidate | undefined> {
+    try {
+      const database = this.checkDatabase();
+      console.log(`Fetching candidate ${id} for AI processing`);
+      
+      // Join with jobs table to get job description
+      const result = await database
+        .select()
+        .from(candidates)
+        .innerJoin(jobs, eq(candidates.jobId, jobs.id))
+        .where(eq(candidates.id, id))
+        .limit(1);
+      
+      if (result.length > 0) {
+        // Return the candidate with job description
+        const candidate = result[0].candidates;
+        (candidate as any).job_description = result[0].jobs.jobDescription;
+        return candidate;
+      }
+      
+      return undefined;
+    } catch (error) {
+      console.error("Error in getCandidateForAI:", error);
+      return undefined;
+    }
+  }
+
+  async getReadyInterviews(): Promise<Candidate[]> {
+    try {
+      const database = this.checkDatabase();
+      console.log(`Fetching ready interviews`);
+      
+      // Get interviews that are scheduled and due to start in the next 5 minutes
+      const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000);
+      
+      const candidatesList = await database
+        .select()
+        .from(candidates)
+        .where(and(
+          eq(candidates.interviewStatus, 'scheduled'),
+          sql`interview_datetime < ${fiveMinutesFromNow.toISOString()}`
+        ));
+        
+      console.log(`Found ${candidatesList.length} ready interviews`);
+      return candidatesList;
+    } catch (error) {
+      console.error("Error in getReadyInterviews:", error);
+      return [];
     }
   }
 

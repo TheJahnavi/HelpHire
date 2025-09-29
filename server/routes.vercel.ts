@@ -1,14 +1,18 @@
 import type { Application, Request, Response } from "express";
 import { storage } from "./storage.js";
+import { db } from "./db.js";
 import bcrypt from "bcryptjs";
 import session from "express-session";
-import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, type User } from "../shared/schema.js";
+import { insertJobSchema, insertCandidateSchema, insertNotificationSchema, insertTodoSchema, insertUserSchema, insertCompanySchema, type User, users, companies, jobs, candidates } from "../shared/schema.js";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import * as fs from "fs";
 import { extractResumeData, calculateJobMatch, generateInterviewQuestions, type ExtractedCandidate } from "./gemini.js";
+import { sendInterviewScheduleEmail, sendInterviewResultsEmail } from "./emailService.js";
+
 import * as mammoth from "mammoth";
+import { eq, count, sql } from "drizzle-orm";
 
 
 
@@ -49,17 +53,38 @@ function setupSession(app: Application) {
 const isAuthenticated = (req: any, res: any, next: any) => {
   // In development environment, allow access for testing
   if (process.env.NODE_ENV === 'development') {
-    // For development, we'll mock a user session
-    if (!req.session.user) {
+    // For development, check if we have a proper user session
+    // If we do, use it; otherwise, use the mock user
+    if (req.session && req.session.user && req.session.user.id !== 'test-user-id') {
+      // Use the actual session user if it's not the mock user
+      console.log("Using actual session user in development:", req.session.user);
+      return next();
+    } else if (req.session && req.session.user) {
+      // If we have a mock user, continue with it
+      console.log("Using mock user in development:", req.session.user);
+      return next();
+    } else {
+      // Create mock user only if no session exists
+      // Allow overriding role via query parameter for testing
+      const role = req.query.role || 'HR';
+      let companyId = null;
+      
+      // Set companyId for Company Admin and HR roles
+      if (role === 'Company Admin' || role === 'HR') {
+        companyId = 1; // Default company ID for testing
+      }
+      
       req.session.user = {
         id: 'test-user-id',
         email: 'test@example.com',
         name: 'Test User',
-        role: 'HR',
-        companyId: null  // We'll set this properly in the route handlers
+        role: role,
+        companyId: companyId
       };
+      console.log("Created mock user with role:", role, "and companyId:", companyId);
+      console.log("Created mock user in development:", req.session.user);
+      return next();
     }
-    return next();
   }
   
   if (req.session && req.session.user) {
@@ -1805,6 +1830,784 @@ export function registerRoutes(app: Application) {
         message: "Failed to add candidates",
         error: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  });
+
+  // Company Admin endpoints
+  
+  // Company Admin Dashboard Stats
+  app.get('/api/company-admin/dashboard-stats', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Get dashboard stats for company admin
+      const companyId = sessionUser.companyId;
+      
+      // Get job stats
+      const jobStats = await storage.getJobStats(companyId, sessionUser.id);
+      
+      // Get candidate stats
+      const candidateStats = await storage.getCandidateStats(companyId, sessionUser.id);
+      
+      // Get HR user count
+      const hrUsers = await storage.getUsersByCompany(companyId);
+      const hrUserCount = hrUsers.length;
+      
+      res.json({
+        jobStats: {
+          total: jobStats.total,
+          active: jobStats.active,
+          hrJobs: jobStats.hrJobs
+        },
+        candidateStats: {
+          totalCandidates: candidateStats.totalCandidates,
+          hrCandidates: candidateStats.hrCandidates,
+          statusStats: candidateStats.statusStats || []
+        },
+        hrUserCount
+      });
+    } catch (error) {
+      console.error("Error fetching company admin dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+  
+  // Company Admin Chart Data
+  app.get('/api/company-admin/chart-data', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Get chart data
+      const chartDataRaw = await storage.getChartData(sessionUser.companyId, sessionUser.id);
+      
+      // Transform data to match frontend expectations
+      const chartData = chartDataRaw.map((item: any) => ({
+        month: item.month,
+        candidates: item.opened,
+        hired: item.filled
+      }));
+      
+      res.json(chartData);
+    } catch (error) {
+      console.error("Error fetching company admin chart data:", error);
+      res.status(500).json({ message: "Failed to fetch chart data" });
+    }
+  });
+  
+  // Company Admin Jobs
+  app.get('/api/company-admin/jobs', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Get all jobs for the company
+      const jobs = await storage.getJobsByCompany(sessionUser.companyId);
+      
+      // Add handled by user info and candidate count
+      const jobsWithDetails = await Promise.all(jobs.map(async (job) => {
+        // Get user who handles the job
+        let handler = null;
+        if (job.hrHandlingUserId) {
+          handler = await storage.getUser(job.hrHandlingUserId);
+        }
+        
+        // Get all candidates for this job using storage method
+        const allCandidates = await storage.getCandidatesByCompany(sessionUser.companyId);
+        const jobCandidates = allCandidates.filter(c => c.jobId === job.id);
+        
+        return {
+          ...job,
+          handledBy: handler ? `${handler.name} (${handler.id})` : 'Unknown',
+          positionsOpened: jobCandidates.length,
+          postedDate: job.createdAt
+        };
+      }));
+      
+      res.json(jobsWithDetails);
+    } catch (error) {
+      console.error("Error fetching company admin jobs:", error);
+      res.status(500).json({ message: "Failed to fetch jobs" });
+    }
+  });
+  
+  app.post('/api/company-admin/jobs', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Create job
+      const jobData = insertJobSchema.parse({
+        ...req.body,
+        companyId: sessionUser.companyId,
+        addedByUserId: sessionUser.id,
+        hrHandlingUserId: sessionUser.id
+      });
+      
+      const job = await storage.createJob(jobData);
+      
+      res.json(job);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating job:", error);
+      res.status(500).json({ message: "Failed to create job" });
+    }
+  });
+  
+  app.put('/api/company-admin/jobs/:id', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Check if job belongs to the company
+      const job = await storage.getJob(jobId);
+      if (!job || job.companyId !== sessionUser.companyId) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      
+      // Update job
+      const updatedJob = await storage.updateJob(jobId, req.body);
+      
+      res.json(updatedJob);
+    } catch (error) {
+      console.error("Error updating job:", error);
+      res.status(500).json({ message: "Failed to update job" });
+    }
+  });
+  
+  app.delete('/api/company-admin/jobs/:id', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Check if job belongs to the company
+      const job = await storage.getJob(jobId);
+      if (!job || job.companyId !== sessionUser.companyId) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      
+      // Delete job
+      const result = await storage.deleteJob(jobId);
+      
+      if (result.success) {
+        res.json({ success: true, message: result.message });
+      } else {
+        res.status(400).json({ success: false, message: result.message });
+      }
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      res.status(500).json({ message: "Failed to delete job" });
+    }
+  });
+  
+  // Company Admin HR Users
+  app.get('/api/company-admin/hr-users', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Get all HR users for the company
+      const users = await storage.getUsersByCompany(sessionUser.companyId);
+      
+      // Add job and candidate counts for each user
+      const usersWithDetails = await Promise.all(users.map(async (user) => {
+        // Get job count for this user
+        // Get job count for this user
+        if (!db) {
+          throw new Error('Database not available');
+        }
+        const jobsCountResult = await db.select({ count: count() })
+          .from(jobs)
+          .where(eq(jobs.hrHandlingUserId, user.id));
+        
+        // Get candidate count for this user
+        const candidatesCountResult = await db.select({ count: count() })
+          .from(candidates)
+          .where(eq(candidates.hrHandlingUserId, user.id));
+        
+        return {
+          ...user,
+          jobsHandled: jobsCountResult[0]?.count || 0,
+          candidatesHandled: candidatesCountResult[0]?.count || 0,
+          company: user.companyId ? (await storage.getCompany(user.companyId))?.companyName || 'Unknown' : 'Unknown'
+        };
+      }));
+      
+      res.json(usersWithDetails);
+    } catch (error) {
+      console.error("Error fetching HR users:", error);
+      res.status(500).json({ message: "Failed to fetch HR users" });
+    }
+  });
+  
+  app.post('/api/company-admin/hr-users', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Create HR user
+      const { name, email, password } = req.body;
+      
+      // Hash password
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      const userData = insertUserSchema.parse({
+        name,
+        email,
+        passwordHash,
+        role: 'HR',
+        companyId: sessionUser.companyId
+      });
+      
+      const user = await storage.createUser(userData);
+      
+      res.json(user);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating HR user:", error);
+      res.status(500).json({ message: "Failed to create HR user" });
+    }
+  });
+  
+  // Add new API routes for AI Interview System
+  
+  // Trigger AI Interview - HR Role Only
+  app.post('/api/candidates/:id/trigger-interview', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      const sessionUser = req.session.user;
+      
+      // Check if user is an HR user
+      if (sessionUser.role !== 'HR') {
+        return res.status(403).json({ message: "Access denied. HR role required." });
+      }
+      
+      // Validate HR user owns the candidate
+      const candidate = await storage.getCandidateById(candidateId);
+      if (!candidate) {
+        return res.status(404).json({ message: "Candidate not found" });
+      }
+      
+      if (candidate.hrHandlingUserId !== sessionUser.id) {
+        return res.status(403).json({ message: "Access denied. You don't own this candidate." });
+      }
+      
+      // Generate a unique schedulerToken
+      const schedulerToken = require('crypto').randomBytes(32).toString('hex');
+      
+      // Update candidate status and save the token
+      await storage.updateCandidateStatus(candidateId, 'pending_schedule');
+      const updatedCandidate = await storage.updateCandidate(candidateId, {
+        schedulerToken: schedulerToken
+      });
+      
+      // Initiate the email service
+      await sendInterviewScheduleEmail(updatedCandidate);
+      
+      res.json({ 
+        success: true, 
+        message: "Interview triggered successfully. Email sent to candidate.",
+        schedulerToken: schedulerToken
+      });
+    } catch (error) {
+      console.error("Error triggering interview:", error);
+      res.status(500).json({ message: "Failed to trigger interview" });
+    }
+  });
+  
+  // Public scheduling endpoint - Token Auth
+  app.post('/api/public/schedule-interview', async (req: any, res: any) => {
+    try {
+      const { token, datetime } = req.body;
+      
+      // Validate schedulerToken and input datetime
+      if (!token || !datetime) {
+        return res.status(400).json({ message: "Token and datetime are required" });
+      }
+      
+      // Find candidate by scheduler token
+      const candidate = await db.select().from(candidates).where(eq(candidates.schedulerToken, token));
+      if (!candidate || candidate.length === 0) {
+        return res.status(404).json({ message: "Invalid or expired token" });
+      }
+      
+      // Generate a unique meetingLink
+      const meetingLink = `https://meet.google.com/${require('crypto').randomBytes(4).toString('hex')}`;
+      
+      // Update candidate with interview schedule
+      const updatedCandidate = await storage.updateInterviewSchedule(token, new Date(datetime), meetingLink);
+      
+      // Send success email to candidate and notification to HR
+      await sendInterviewScheduleEmail(updatedCandidate);
+      
+      res.json({ 
+        success: true, 
+        message: "Interview scheduled successfully",
+        meetingLink: meetingLink
+      });
+    } catch (error) {
+      console.error("Error scheduling interview:", error);
+      res.status(500).json({ message: "Failed to schedule interview" });
+    }
+  });
+  
+  // Internal callback endpoint - API Key Auth
+  app.post('/api/internal/interview-callback', async (req: any, res: any) => {
+    try {
+      const { candidateId, transcriptUrl, reportUrl } = req.body;
+      
+      // Validate internal API Key (simplified for demo)
+      const apiKey = req.headers['x-api-key'];
+      if (!apiKey || apiKey !== process.env.INTERNAL_API_KEY) {
+        return res.status(401).json({ message: "Unauthorized. Invalid API key." });
+      }
+      
+      // Validate required fields
+      if (!candidateId || !transcriptUrl || !reportUrl) {
+        return res.status(400).json({ message: "candidateId, transcriptUrl, and reportUrl are required" });
+      }
+      
+      // Update candidate with interview results
+      const updatedCandidate = await storage.updateInterviewResults(
+        parseInt(candidateId), 
+        transcriptUrl, 
+        reportUrl
+      );
+      
+      // Send results email to candidate and notification to HR
+      await sendInterviewResultsEmail(updatedCandidate);
+      
+      res.json({ 
+        success: true, 
+        message: "Interview results updated successfully"
+      });
+    } catch (error) {
+      console.error("Error updating interview results:", error);
+      res.status(500).json({ message: "Failed to update interview results" });
+    }
+  });
+
+  
+  app.delete('/api/company-admin/hr-users/:id', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const userId = req.params.id;
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Check if user belongs to the company
+      const user = await storage.getUser(userId);
+      if (!user || user.companyId !== sessionUser.companyId) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Delete user
+      if (!db) {
+        throw new Error('Database not available');
+      }
+      await db.delete(users).where(eq(users.id, userId));
+      
+      res.json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting HR user:", error);
+      res.status(500).json({ message: "Failed to delete HR user" });
+    }
+  });
+  
+  // Company Subscription
+  app.get('/api/company/subscription', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Get company subscription info
+      const company = await storage.getCompany(sessionUser.companyId);
+      
+      // For now, return basic company info as subscription data
+      // In a real implementation, this would connect to a payment system
+      res.json({
+        planName: "Basic Plan",
+        price: "$99/month",
+        renewalDate: "2024-12-31",
+        companyId: sessionUser.companyId,
+        companyName: company?.companyName || 'Unknown Company'
+      });
+    } catch (error) {
+      console.error("Error fetching subscription info:", error);
+      res.status(500).json({ message: "Failed to fetch subscription info" });
+    }
+  });
+  
+  // Super Admin endpoints
+  
+  // Super Admin Dashboard Stats
+  app.get('/api/super-admin/dashboard-stats', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      console.log('Super Admin Dashboard - Session User:', sessionUser);
+      
+      // Check if user is a Super Admin
+      if (sessionUser.role !== 'Super Admin') {
+        console.log('Super Admin Dashboard - Access denied. User role:', sessionUser.role);
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      // Get dashboard stats for super admin
+      
+      // Check database availability
+      if (!db) {
+        throw new Error('Database not available');
+      }
+      
+      // Total Companies
+      const totalCompaniesResult = await db.select({ count: count() }).from(companies);
+      const totalCompanies = totalCompaniesResult[0]?.count || 0;
+      
+      // Total Users
+      const totalUsersResult = await db.select({ count: count() }).from(users);
+      const totalUsers = totalUsersResult[0]?.count || 0;
+      
+      // Total Jobs
+      const totalJobsResult = await db.select({ count: count() }).from(jobs);
+      const totalJobs = totalJobsResult[0]?.count || 0;
+      
+      // New Users (users created in the last 30 days)
+      const newUserCountResult = await db.select({ count: count() })
+        .from(users)
+        .where(sql`created_at > NOW() - INTERVAL '30 days'`);
+      const newUserCount = newUserCountResult[0]?.count || 0;
+      
+      // New Companies Over Time
+      const newCompaniesOverTime = await db.select({
+        month: sql<string>`TO_CHAR(${companies.createdAt}, 'YYYY-MM')`.as('month'),
+        companies: count(),
+      })
+      .from(companies)
+      .groupBy(sql`TO_CHAR(${companies.createdAt}, 'YYYY-MM')`)
+      .orderBy(sql`TO_CHAR(${companies.createdAt}, 'YYYY-MM')`);
+      
+      // Jobs Posted Per Company (top 10)
+      const jobsPerCompany = await db.select({
+        companyName: companies.companyName,
+        count: count(),
+      })
+      .from(jobs)
+      .innerJoin(companies, eq(jobs.companyId, companies.id))
+      .groupBy(companies.companyName)
+      .orderBy(sql`count DESC`)
+      .limit(10);
+      
+      // User Roles Breakdown
+      const userRolesBreakdown = await db.select({
+        role: users.role,
+        count: count(),
+      })
+      .from(users)
+      .groupBy(users.role);
+      
+      res.json({
+        companyCount: totalCompanies,
+        userCount: totalUsers,
+        jobCount: totalJobs,
+        newUserCount,
+        newCompaniesOverTime,
+        jobsPerCompany,
+        userRolesBreakdown
+      });
+    } catch (error) {
+      console.error("Error fetching super admin dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+  
+  // Company Admin Dashboard Stats
+  app.get('/api/company-admin/dashboard-stats', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      console.log('Company Admin Dashboard - Session User:', sessionUser);
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        console.log('Company Admin Dashboard - Access denied. User role:', sessionUser.role);
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Get job stats
+      const jobStats = await storage.getJobStats(sessionUser.companyId, sessionUser.id);
+      
+      // Get candidate stats
+      const candidateStats = await storage.getCandidateStats(sessionUser.companyId, sessionUser.id);
+      
+      // Get HR user count for the company
+      const companyUsers = await storage.getUsersByCompany(sessionUser.companyId);
+      const hrUserCount = companyUsers.filter(user => user.role === 'HR').length;
+      
+      res.json({
+        jobStats,
+        candidateStats,
+        hrUserCount
+      });
+    } catch (error) {
+      console.error("Error fetching company admin dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+  
+  // Company Admin Chart Data
+  app.get('/api/company-admin/chart-data', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      console.log('Company Admin Chart Data - Session User:', sessionUser);
+      
+      // Check if user is a Company Admin
+      if (sessionUser.role !== 'Company Admin') {
+        console.log('Company Admin Chart Data - Access denied. User role:', sessionUser.role);
+        return res.status(403).json({ message: "Access denied. Company Admin role required." });
+      }
+      
+      if (!sessionUser.companyId) {
+        return res.status(400).json({ message: "Company not found for user" });
+      }
+      
+      // Get chart data
+      const chartData = await storage.getChartData(sessionUser.companyId, sessionUser.id);
+      
+      // Transform data to match frontend expectations
+      const transformedData = chartData.map((item: any) => ({
+        month: item.month,
+        candidates: item.opened,
+        hired: item.filled
+      }));
+      
+      res.json(transformedData);
+    } catch (error) {
+      console.error("Error fetching company admin chart data:", error);
+      res.status(500).json({ message: "Failed to fetch chart data" });
+    }
+  });
+  
+  // Super Admin Companies
+  app.get('/api/super-admin/companies', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Super Admin
+      if (sessionUser.role !== 'Super Admin') {
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      // Get all companies
+      const companiesList = await storage.getCompanies();
+      
+      res.json(companiesList);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      res.status(500).json({ message: "Failed to fetch companies" });
+    }
+  });
+  
+  app.post('/api/super-admin/companies', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Super Admin
+      if (sessionUser.role !== 'Super Admin') {
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      // Create company
+      const companyData = insertCompanySchema.parse(req.body);
+      
+      const company = await storage.createCompany(companyData);
+      
+      res.json(company);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      console.error("Error creating company:", error);
+      res.status(500).json({ message: "Failed to create company" });
+    }
+  });
+  
+  // Super Admin Users
+  app.get('/api/super-admin/users', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Super Admin
+      if (sessionUser.role !== 'Super Admin') {
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      // Get all users
+      if (!db) {
+        throw new Error('Database not available');
+      }
+      const usersList = await db.select().from(users);
+      
+      res.json(usersList);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+  
+  // Super Admin Subscriptions
+  app.get('/api/super-admin/subscriptions', isAuthenticated, async (req: any, res: any) => {
+    try {
+      const sessionUser = req.session.user;
+      
+      // Check if user is a Super Admin
+      if (sessionUser.role !== 'Super Admin') {
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      // Get all companies with subscription info
+      const companiesList = await storage.getCompanies();
+      
+      // For now, return basic company info as subscription data
+      // In a real implementation, this would connect to a payment system
+      const subscriptions = companiesList.map(company => ({
+        companyId: company.id,
+        companyName: company.companyName,
+        planName: "Basic Plan",
+        price: "$99/month",
+        renewalDate: "2024-12-31"
+      }));
+      
+      res.json(subscriptions);
+    } catch (error) {
+      console.error("Error fetching subscriptions:", error);
+      res.status(500).json({ message: "Failed to fetch subscriptions" });
+    }
+  });
+  
+  // Add cascading delete endpoint for Super Admins
+  app.delete('/api/super-admin/companies/:id', isAuthenticated, async (req: any, res: any) => {
+    try {
+      console.log("Cascading delete endpoint called");
+      const sessionUser = req.session.user;
+      console.log("Session user:", sessionUser);
+      
+      // Check if user is a Super Admin (bypass in development for testing)
+      if (sessionUser.role !== 'Super Admin' && process.env.NODE_ENV !== 'development') {
+        console.log("Access denied: User is not a Super Admin");
+        return res.status(403).json({ message: "Access denied. Super Admin role required." });
+      }
+      
+      const companyId = parseInt(req.params.id);
+      console.log("Company ID to delete:", companyId);
+      if (isNaN(companyId)) {
+        console.log("Invalid company ID");
+        return res.status(400).json({ message: "Invalid company ID" });
+      }
+      
+      // Perform cascading delete
+      console.log("Calling storage.deleteCompanyAndAssociatedData");
+      const result = await storage.deleteCompanyAndAssociatedData(companyId);
+      console.log("Delete result:", result);
+      
+      if (result.success) {
+        console.log("Sending success response");
+        return res.json({ success: true, message: result.message });
+      } else {
+        console.log("Sending error response");
+        return res.status(404).json({ success: false, message: result.message });
+      }
+    } catch (error) {
+      console.error("Error deleting company:", error);
+      return res.status(500).json({ message: "Failed to delete company" });
     }
   });
 }

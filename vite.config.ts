@@ -38,5 +38,21 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5004',
+        changeOrigin: true,
+        secure: false,
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('Proxy error:', err);
+            res.writeHead(500, {
+              'Content-Type': 'text/plain',
+            });
+            res.end('Proxy error');
+          });
+        }
+      }
+    }
   },
 });

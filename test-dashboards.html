@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard Test</title>
+</head>
+<body>
+    <h1>Dashboard Endpoint Tests</h1>
+    
+    <h2>Super Admin Dashboard</h2>
+    <button onclick="testSuperAdmin()">Test Super Admin Dashboard</button>
+    <div id="super-admin-result"></div>
+    
+    <h2>Company Admin Dashboard</h2>
+    <button onclick="testCompanyAdmin()">Test Company Admin Dashboard</button>
+    <div id="company-admin-result"></div>
+
+    <script>
+        async function testSuperAdmin() {
+            const resultDiv = document.getElementById('super-admin-result');
+            try {
+                const response = await fetch('http://localhost:5004/api/super-admin/dashboard-stats?role=Super%20Admin', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function testCompanyAdmin() {
+            const resultDiv = document.getElementById('company-admin-result');
+            try {
+                const response = await fetch('http://localhost:5004/api/company-admin/dashboard-stats?role=Company%20Admin', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

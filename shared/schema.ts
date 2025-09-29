@@ -82,6 +82,14 @@ export const candidates = pgTable("candidates", {
   interviewLink: text("interview_link"),
   technicalPersonEmail: varchar("technical_person_email"),
   createdAt: timestamp("created_at").defaultNow(),
+  
+  // NEW FIELDS for AI Interview System
+  interviewStatus: varchar("interview_status", { length: 50 }).default('applied'), // New primary status field
+  interviewDatetime: timestamp("interview_datetime"), // Candidate selected time
+  meetingLink: text("meeting_link"), // Unique URL for the AI interview
+  transcriptUrl: text("transcript_url"), // Link to stored interview transcript
+  reportUrl: text("report_url"), // Link to stored AI-generated report
+  schedulerToken: varchar("scheduler_token", { length: 64 }).unique(), // Secure token for public scheduling page
 });
 
 // Notifications table

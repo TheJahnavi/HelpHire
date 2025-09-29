@@ -339,6 +339,124 @@ RESPONSE FORMAT (Return only valid JSON, no markdown, no extra text):
   }
 }
 
+// Add new AI functions for interview system
+
+// Generate interview questions for AI-driven interviews
+export async function generateInterviewQuestionsForAI(
+  jobDescription: string,
+  candidateResumeText: string
+): Promise<any[]> {
+  try {
+    const prompt = `
+Act as an expert interview question generator for AI-powered interviews. 
+Create a series of questions based on the job description and candidate resume.
+
+Input:
+Job Description: ${jobDescription}
+Candidate Resume: ${candidateResumeText}
+
+Instructions:
+1. Generate exactly 10 questions that are relevant to both the job and candidate's experience
+2. Questions should be open-ended and encourage detailed responses
+3. Mix technical and behavioral questions
+4. Avoid yes/no questions
+5. Output format must be a JSON array of question objects
+
+Output Format:
+[
+  {
+    "id": 1,
+    "question": "First question text here"
+  },
+  {
+    "id": 2,
+    "question": "Second question text here"
+  }
+  // ... up to 10 questions
+]
+
+RESPONSE (Return only valid JSON array, no markdown, no extra text):
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "deepseek/deepseek-chat-v3-0324:free",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.0,
+      max_tokens: 1500,
+    });
+
+    const content = response.choices[0]?.message?.content || "[]";
+    const parsed = JSON.parse(content);
+    
+    // Validate and ensure it's an array
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Error in generateInterviewQuestionsForAI:", error);
+    // Return default questions
+    return [
+      { id: 1, question: "Please tell me about yourself and your background." },
+      { id: 2, question: "What interests you most about this position?" }
+    ];
+  }
+}
+
+// Generate interview report based on transcript
+export async function generateInterviewReport(
+  transcript: string,
+  jobDescription: string
+): Promise<any> {
+  try {
+    const prompt = `
+Act as an expert HR analyst. Analyze the interview transcript against the job description 
+and generate a structured evaluation report.
+
+Input:
+Interview Transcript: ${transcript}
+Job Description: ${jobDescription}
+
+Instructions:
+1. Analyze the candidate's responses in the transcript
+2. Compare against job requirements
+3. Generate a structured report with specific observations
+4. Output must be valid JSON
+
+Output Format:
+{
+  "positives": ["string array of positive observations"],
+  "negatives": ["string array of areas for improvement"],
+  "recommendation": "string with hiring recommendation"
+}
+
+RESPONSE (Return only valid JSON object, no markdown, no extra text):
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "deepseek/deepseek-chat-v3-0324:free",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.0,
+      max_tokens: 1500,
+    });
+
+    const content = response.choices[0]?.message?.content || "{}";
+    const parsed = JSON.parse(content);
+    
+    // Validate and ensure all required fields are present
+    return {
+      positives: Array.isArray(parsed.positives) ? parsed.positives : [],
+      negatives: Array.isArray(parsed.negatives) ? parsed.negatives : [],
+      recommendation: typeof parsed.recommendation === 'string' ? parsed.recommendation : "No recommendation available"
+    };
+  } catch (error) {
+    console.error("Error in generateInterviewReport:", error);
+    // Return default report
+    return {
+      positives: ["Candidate completed the interview process"],
+      negatives: ["Analysis could not be completed due to technical issues"],
+      recommendation: "Review interview transcript manually"
+    };
+  }
+}
+
 // Fallback method for data extraction when AI fails
 function fallbackExtractResumeData(resumeText: string): ExtractedCandidate {
   console.log("Using fallback method for resume data extraction");

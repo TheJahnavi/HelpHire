@@ -54,11 +54,19 @@ export default function Login() {
   const selectedRole = form.watch("role");
   const showCompanyField = selectedRole && selectedRole !== "Super Admin";
 
-  // Pre-fill HR credentials when HR role is selected
+  // Pre-fill credentials when role is selected
   useEffect(() => {
-    if (selectedRole === "HR") {
-      form.setValue("email", "hr1@techcorp.com");
+    if (selectedRole === "Super Admin") {
+      form.setValue("email", "superadmin@smarthire.com");
       form.setValue("password", "hrpassword123");
+      form.setValue("company", ""); // Clear company field for Super Admin
+    } else if (selectedRole === "Company Admin") {
+      form.setValue("email", "admin@techcorp.com");
+      form.setValue("password", "hrpassword123");
+      form.setValue("company", "TechCorp Inc");
+    } else if (selectedRole === "HR") {
+      form.setValue("email", "hr1@techcorp.com");
+      form.setValue("password", "password123");
       form.setValue("company", "TechCorp Inc");
     }
   }, [selectedRole, form]);
@@ -66,12 +74,13 @@ export default function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      // Make login request without x-user-id header since we don't have a user yet
+      // Make login request with credentials included for session handling
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include", // Include credentials for session handling
         body: JSON.stringify(data),
       });
       
@@ -97,7 +106,7 @@ export default function Login() {
         } else if (data.role === "Company Admin") {
           window.location.href = "/company-admin/dashboard";
         } else {
-          // For HR users, redirect to the main dashboard
+          // For HR users, redirect to the HR dashboard
           window.location.href = "/hr/dashboard";
         }
       }, 100);

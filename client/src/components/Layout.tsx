@@ -38,6 +38,70 @@ export default function Layout({ children }: LayoutProps) {
 
   const isActive = (path: string) => location === path;
 
+  // Determine the dashboard path based on user role
+  const getDashboardPath = () => {
+    if (!user) return "/";
+    
+    switch (user.role) {
+      case "Super Admin":
+        return "/super-admin";
+      case "Company Admin":
+        return "/company-admin";
+      default:
+        return "/hr/dashboard";
+    }
+  };
+
+  // Get navigation items based on user role
+  const getNavItems = () => {
+    if (!user) return [];
+    
+    switch (user.role) {
+      case "Super Admin":
+        return [
+          { name: "Dashboard", path: "/super-admin" },
+          { name: "Companies", path: "/super-admin/companies" },
+          { name: "Users", path: "/super-admin/users" },
+          { name: "Subscriptions", path: "/super-admin/subscriptions" },
+        ];
+      case "Company Admin":
+        return [
+          { name: "Dashboard", path: "/company-admin" },
+          { name: "Jobs", path: "/company-admin/jobs" },
+          { name: "HR Users", path: "/company-admin/hr-users" },
+          { name: "Subscription", path: "/company-admin/subscription" },
+        ];
+      default:
+        return [
+          { name: "Dashboard", path: "/hr/dashboard" },
+          { name: "Jobs", path: "/hr/jobs" },
+          { name: "Candidates", path: "/hr/candidates" },
+          { name: "Upload & Add", path: "/hr/upload" },
+        ];
+    }
+  };
+
+  // Get dropdown menu items based on user role
+  const getDropdownMenuItems = () => {
+    if (!user) return [];
+    
+    const baseItems = [
+      { name: "Profile", path: "/profile" },
+      { name: "Notifications", path: "/notifications" },
+    ];
+    
+    // Add role-specific items
+    if (user.role === "Company Admin") {
+      baseItems.splice(1, 0, { name: "Subscription", path: "/company-admin/subscription" });
+    }
+    
+    return baseItems;
+  };
+
+  const dashboardPath = getDashboardPath();
+  const navItems = getNavItems();
+  const dropdownMenuItems = getDropdownMenuItems();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation Bar */}
@@ -45,7 +109,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <Link href={isAuthenticated ? "/hr/dashboard" : "/"}>
+            <Link href={isAuthenticated ? dashboardPath : "/"}>
               <div className="flex items-center space-x-3 cursor-pointer" data-testid="nav-logo">
                 <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                   <Brain className="text-primary-foreground" size={20} />
@@ -57,33 +121,17 @@ export default function Layout({ children }: LayoutProps) {
             {/* Navigation Items */}
             {isAuthenticated && (
               <div className="hidden md:flex items-center space-x-8">
-                <Link href="/hr/jobs" data-testid="nav-jobs">
-                  <span
-                    className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
-                      isActive("/hr/jobs") ? "text-primary" : "text-muted-foreground"
-                    }`}
-                  >
-                    Jobs
-                  </span>
-                </Link>
-                <Link href="/hr/candidates" data-testid="nav-candidates">
-                  <span
-                    className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
-                      isActive("/hr/candidates") ? "text-primary" : "text-muted-foreground"
-                    }`}
-                  >
-                    Candidates
-                  </span>
-                </Link>
-                <Link href="/hr/upload" data-testid="nav-upload">
-                  <span
-                    className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
-                      isActive("/hr/upload") ? "text-primary" : "text-muted-foreground"
-                    }`}
-                  >
-                    Upload & Add
-                  </span>
-                </Link>
+                {navItems.map((item) => (
+                  <Link key={item.path} href={item.path} data-testid={`nav-${item.name.toLowerCase()}`}>
+                    <span
+                      className={`text-sm font-medium transition-colors hover:text-primary cursor-pointer ${
+                        isActive(item.path) ? "text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                  </Link>
+                ))}
               </div>
             )}
 
@@ -137,16 +185,15 @@ export default function Layout({ children }: LayoutProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-56" align="end" forceMount>
-                      <DropdownMenuItem asChild>
-                        <Link href="/hr/profile">
-                          <span className="w-full cursor-pointer" data-testid="profile-link">Profile</span>
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/hr/notifications">
-                          <span className="w-full cursor-pointer" data-testid="notifications-link">Notifications</span>
-                        </Link>
-                      </DropdownMenuItem>
+                      {dropdownMenuItems.map((item) => (
+                        <DropdownMenuItem key={item.path} asChild>
+                          <Link href={item.path}>
+                            <span className="w-full cursor-pointer" data-testid={`${item.name.toLowerCase()}-link`}>
+                              {item.name}
+                            </span>
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
                       <DropdownMenuItem 
                         onClick={async () => {
                           try {
